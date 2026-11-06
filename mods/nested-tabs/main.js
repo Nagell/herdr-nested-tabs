@@ -28,7 +28,7 @@ function place(s, ps) {
 }
 const rowHeight = ({ tree }) => (tree ? 28 : 30);
 // Left offsets inside a row, so a child's icon sits under its parent's avatar.
-const CHEVRON = 14;
+const CHEVRON = 18;
 const LEAD_GAP = 5;
 const TREE_INDENT = CHEVRON + LEAD_GAP;
 const ROW_PAD = 8;
@@ -390,10 +390,11 @@ export default class Spaces extends View {
   chevron(w, t) {
     const open = this.tabsOpen(w);
     return div().id(`fold-${w.id}`).size(CHEVRON).flex_none().flex().items_center().justify_center().rounded(3)
-      .text_color(t.dim).hover((s) => s.text_color(t.foreground))
+      .text_color(t.muted).hover((s) => s.text_color(t.foreground))
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
       .on_click((_e, cx) => { cx.stop_propagation(); this.toggleTabs(w); cx.notify(); })
-      .child(svg(`mods/workspace-chrome/chevron-${open ? "down" : "right"}.svg`).size(11));
+      // Lucide draws the arrow in the middle half of its box: 16 shows about 8 px.
+      .child(svg(`mods/workspace-chrome/chevron-${open ? "down" : "right"}.svg`).size(16));
   }
 
   // Working: spinner. Blocked or done: a dot in its color. Idle: nothing.
