@@ -68,6 +68,7 @@ export default class Spaces extends View {
     this.pressed = null;
     this.over = null;
     this.tabPressed = null;
+    this.tabOver = null;
     this.tabsFolded = new Set(JSON.parse(localStorage.getItem("tabs.folded") ?? "[]"));
     this.machines = [];
     this.reconnecting = JSON.parse(localStorage.getItem("machines.reconnecting") ?? "{}");
@@ -408,23 +409,41 @@ export default class Spaces extends View {
   tabRows({ w, tree }, t, ps) {
     if (!this.tabsOpen(w)) return [];
     const indent = ROW_PAD + TREE_INDENT + (tree ? TREE_INDENT : 0);
+    // Tabs move only within their space, so a drag shows feedback only there.
+    const dragged = (w.tabs ?? []).find((x) => x.id === this.tabPressed);
     return (w.tabs ?? []).map((c) => {
       const program = ps.find((p) => p.tab === c.id && p.program?.agent)?.program ?? ps.find((p) => p.tab === c.id)?.program;
       const name = /^tb\d+$/.test(c.name) ? program?.name ?? "Terminal" : c.name;
       const on = w.active && c.active;
       const mark = this.status(c.status, t);
-      return h_flex().id(`tab-${c.id}`).h(26).flex_none().pl(indent).pr(ROW_PAD).gap(7).items_center().rounded(7)
+      const target = dragged && this.tabOver === c.id && dragged.id !== c.id;
+      return h_flex().relative().id(`tab-${c.id}`).h(26).flex_none().pl(indent).pr(ROW_PAD).gap(7).items_center().rounded(7)
         .text_size(12.5).text_color(on ? t.foreground : t.muted)
         .when(on, (el) => el.bg(t.selected))
         .when(!on, (el) => el.hover((s) => s.bg(t.hover)))
+        .when(dragged?.id === c.id && this.tabOver !== c.id, (el) => el.opacity(0.5))
+        .when(target, (el) => el.child(
+          div().absolute().left(0).right(0).h(2).bg(t.accent)
+            .when(dragged.index < c.index, (line) => line.bottom(0))
+            .when(dragged.index > c.index, (line) => line.top(0)),
+        ))
         .on_mouse_down("left", (e, cx) => {
           cx.stop_propagation();
           this.tabPressed = c.id;
+          this.tabOver = c.id;
           if (e.click_count === 2) run("tab.rename", { id: c.id });
+        })
+        .on_mouse_move((_e, cx) => {
+          const over = (w.tabs ?? []).some((x) => x.id === this.tabPressed) ? c.id : null;
+          if (this.tabPressed !== null && this.tabOver !== over) {
+            this.tabOver = over;
+            cx.notify();
+          }
         })
         .on_mouse_up("left", (_e, cx) => {
           const from = this.tabPressed;
           this.tabPressed = null;
+          this.tabOver = null;
           if (from && from !== c.id && w.tabs.some((x) => x.id === from)) run("tab.move", { id: from, index: c.index });
           else if (from === c.id) {
             if (!w.active) run("space.select", { id: w.id });
@@ -547,7 +566,7 @@ export default class Spaces extends View {
         .child(div().id("space-new").size(26).flex_none().flex().items_center().justify_center().rounded(6).hover(s => s.bg(t.hover).text_color(t.foreground))
           .on_click(() => run("space.new")).child(svg("mods/workspace-chrome/plus.svg").size(14))))
       .child(v_flex().flex_1().min_h(0).px(8).pb(14).overflow_y_scrollbar().mode("always")
-        .on_mouse_up("left", (_e, cx) => { this.pressed = null; this.tabPressed = null; cx.notify(); })
+        .on_mouse_up("left", (_e, cx) => { this.pressed = null; this.tabPressed = null; this.tabOver = null; cx.notify(); })
         .children(this.grouped(t, collapsed)));
   }
 }
