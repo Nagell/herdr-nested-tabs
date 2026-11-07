@@ -400,15 +400,13 @@ export default class Spaces extends View {
       .child(svg(`mods/workspace-chrome/chevron-${open ? "down" : "right"}.svg`).size(16));
   }
 
-  // New tab in this space: select it, then the same menu the top bar's + opened
-  // (new-menu adds the tab to the active space).
+  // New tab, on the active space's row only: drawn like a tab row's ×, at the
+  // same right edge. Opens the menu the top bar's + used (it adds to the active space).
   addTab(w, t) {
-    return div().id(`add-${w.id}`).size(CHEVRON).flex_none().flex().items_center().justify_center().rounded(4)
-      .text_color(t.dim).hover((s) => s.bg(t.hover).text_color(t.foreground))
+    return div().id(`add-${w.id}`).flex_none().text_color(t.dim).hover((s) => s.text_color(t.foreground))
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
       .on_click((_e, cx) => {
         cx.stop_propagation();
-        if (!w.active) run("space.select", { id: w.id });
         openOverlay({ mod: "new-menu", kind: "popup", width: 250, height: 512 });
       })
       .child(svg("mods/workspace-chrome/plus.svg").size(12));
@@ -544,7 +542,7 @@ export default class Spaces extends View {
           .child(div().flex_shrink(0).max_w(150).truncate().text_color(t.foreground).child(w.name))
           .child(g ? this.gitTail(g, tree, w.name, t) : div().flex_1())
           .when(Boolean(mark), el => el.child(mark))
-          .child(this.addTab(w, t)),
+          .when(w.active, el => el.child(this.addTab(w, t))),
       );
   }
 

@@ -3,7 +3,7 @@
 Herdr's default window with the tabs moved out of the top bar and into the
 Spaces sidebar. Each space lists its own tabs right under it, so you can see
 what every space is running, and which agent needs you, without switching
-spaces. New tabs come from a `+` on each space's row. The top bar keeps
+spaces. New tabs come from a `+` on the active space's row. The top bar keeps
 Files and Changes and loses its tab chips and its `+`.
 
 ![Nested Tabs](preview.png)
@@ -32,8 +32,9 @@ Everything outside the sidebar list and the top bar is the same as Herdr's
      its git state, in 11.5px `dim`: the repo name when it differs from the
      space name, and the branch unless it is `main`/`master` or matches the
      name. After that, `↑n` in `ansi2` and `↓n` in `ansi1`, the status mark
-     when folded, and last an 18px `+` (12px plus icon, `dim`, `foreground`
-     on a `hover` background when hovered) that adds a tab to this space.
+     when folded, and last, on the active space's row only, a `+` drawn like
+     a tab row's ×: a 12px plus icon in `dim`, `foreground` on hover, at the
+     same right edge.
    - **Worktree rows** sit under their repo's space, indented by 23px, with
      a branch icon in place of the avatar.
    - **Tab rows**, 26px each, 7px radius, 12.5px text, sit under their space
@@ -78,10 +79,10 @@ Agent status on a tab row, and on a folded space's row:
   are kept in the mod's `localStorage` as `tabs.folded`). A folded space shows
   the status mark of the tabs it hides on its own row. An open space shows
   none, since its tabs show their own.
-- **New tab:** the `+` on a space row selects that space if it isn't the
-  active one, then opens Herdr's new-tab menu (terminal, agents, new space,
-  worktrees), which adds the tab to the active space. The row underneath
-  doesn't react to the click.
+- **New tab:** the `+` on the active space's row opens Herdr's new-tab menu
+  (terminal, agents, new space, worktrees), which adds the tab to that
+  space. Other space rows show no `+`. The row underneath doesn't react to
+  the click.
 - **Highlight:** when a space is open and has tabs, its selected tab gets the
   highlight and the space row doesn't. A folded or tab-less active space
   highlights its own row.
@@ -119,7 +120,7 @@ Agent status on a tab row, and on a folded space's row:
   `shared("space.colors")`. Commands: `space.select`, `space.move`,
   `space.new`, `tab.select`, `tab.move`, `tab.rename`, `tab.close`. Overlays:
   the shipped `menu` mod with `tab: "space"` or `tab: "tab"`, and the
-  shipped `new-menu` (popup, 250 × 512) from each space's `+`.
+  shipped `new-menu` (popup, 250 × 512) from the active space's `+`.
 - **`mods/tabs-bar/`**: a clone of the shipped `tabs` mod (0.1.13) with
   the chips and the `+` removed, keeping the panel buttons, the per-space panel
   memory (`localStorage` `panels`) and the window buttons. Commands:
@@ -146,8 +147,8 @@ Agent status on a tab row, and on a folded space's row:
 - **Tab drags must stay inside a space.** `tab.move` takes an index within
   the tab's own space. A drop on another space's tab is ignored, and so is
   the hover line over it.
-- **`new-menu` only knows the active space.** It takes no space argument, so
-  the row's `+` runs `space.select` before opening it.
+- **`new-menu` only knows the active space.** It takes no space argument,
+  which is why the `+` shows on the active space's row only.
 - **Stop propagation** on the fold arrow, the `+`, the tab rows and ×: otherwise the
   press reaches the space row underneath and starts a space drag or a
   double-click fold.
@@ -163,8 +164,9 @@ Agent status on a tab row, and on a folded space's row:
 - `herdr-app check` passes for `mods/nested-tabs` and `mods/tabs-bar`, and
   `layout.switch {"name":"nested-tabs"}` shows the window above.
 - Every space lists its tabs under it, and closing a tab removes its row.
-- The `+` on another space's row switches to that space and opens the
-  new-tab menu; the new tab appears under that space. The top bar has no `+`.
+- Only the active space's row shows a `+`, lined up with the selected tab's
+  ×. It opens the new-tab menu, and the new tab appears under that space.
+  The top bar has no `+`.
 - A space with one tab shows a dimmer arrow than one with several.
 - Clicking a tab in another space switches to that space and tab.
 - The arrow and a double-click on the space row both fold and unfold, and the
