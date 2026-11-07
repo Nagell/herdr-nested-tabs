@@ -390,12 +390,28 @@ export default class Spaces extends View {
 
   chevron(w, t) {
     const open = this.tabsOpen(w);
+    // One tab or none: little to fold, so the arrow steps back.
+    const few = (w.tabs?.length ?? 0) <= 1;
     return div().id(`fold-${w.id}`).size(CHEVRON).flex_none().flex().items_center().justify_center().rounded(3)
-      .text_color(t.muted).hover((s) => s.text_color(t.foreground))
+      .text_color(few ? t.dim : t.muted).hover((s) => s.text_color(t.foreground))
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
       .on_click((_e, cx) => { cx.stop_propagation(); this.toggleTabs(w); cx.notify(); })
       // Lucide draws the arrow in the middle half of its box: 16 shows about 8 px.
       .child(svg(`mods/workspace-chrome/chevron-${open ? "down" : "right"}.svg`).size(16));
+  }
+
+  // New tab in this space: select it, then the same menu the top bar's + opened
+  // (new-menu adds the tab to the active space).
+  addTab(w, t) {
+    return div().id(`add-${w.id}`).size(CHEVRON).flex_none().flex().items_center().justify_center().rounded(4)
+      .text_color(t.dim).hover((s) => s.bg(t.hover).text_color(t.foreground))
+      .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+      .on_click((_e, cx) => {
+        cx.stop_propagation();
+        if (!w.active) run("space.select", { id: w.id });
+        openOverlay({ mod: "new-menu", kind: "popup", width: 250, height: 512 });
+      })
+      .child(svg("mods/workspace-chrome/plus.svg").size(12));
   }
 
   // Working: spinner. Blocked or done: a dot in its color. Idle: nothing.
@@ -527,7 +543,8 @@ export default class Spaces extends View {
             .when(!tree, el => el.child(h_flex().size(18).flex_none().rounded(5).bg(fill).items_center().justify_center().text_size(10.5).font_bold().text_color("#ffffff").child([...w.name][0]?.toUpperCase() ?? "?"))))
           .child(div().flex_shrink(0).max_w(150).truncate().text_color(t.foreground).child(w.name))
           .child(g ? this.gitTail(g, tree, w.name, t) : div().flex_1())
-          .when(Boolean(mark), el => el.child(mark)),
+          .when(Boolean(mark), el => el.child(mark))
+          .child(this.addTab(w, t)),
       );
   }
 

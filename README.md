@@ -54,7 +54,9 @@ to see what was running where, so this layout moves the tabs into the Spaces
 sidebar, under the space they belong to.
 
 - Each space lists its tabs. The triangle folds or unfolds them, and so does a
-  double-click anywhere else on the space's row.
+  double-click anywhere else on the space's row. With one tab the triangle is
+  dimmed.
+- The `+` on a space's row opens the new-tab menu for that space.
 - A tab row looks like a tab in the top bar: program icon, name, a spinner while
   an agent works, a dot when it is blocked or done, and × on the selected tab.
 - Click selects (in any space), double-click renames, right-click opens the tab
@@ -62,8 +64,8 @@ sidebar, under the space they belong to.
 - A folded space shows its most urgent agent status on its own row.
 - Worktree spaces stay nested under their repo's space, as in Herdr, and list
   their own tabs under them.
-- The top bar keeps `+`, Files, Changes and the per-space panel memory, only the
-  tab chips are gone.
+- The top bar keeps Files, Changes and the per-space panel memory; the tab
+  chips and its `+` are gone.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

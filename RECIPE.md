@@ -3,7 +3,8 @@
 Herdr's default window with the tabs moved out of the top bar and into the
 Spaces sidebar. Each space lists its own tabs right under it, so you can see
 what every space is running, and which agent needs you, without switching
-spaces. The top bar keeps `+`, Files and Changes and loses its tab chips.
+spaces. New tabs come from a `+` on each space's row. The top bar keeps
+Files and Changes and loses its tab chips and its `+`.
 
 ![Nested Tabs](preview.png)
 
@@ -21,7 +22,8 @@ Everything outside the sidebar list and the top bar is the same as Herdr's
    - Header, 31px: "Spaces" in 11.5px `dim`, and a 26px `+` button on the
      right that makes a new space.
    - **Space row**, 30px (28px for a worktree), 8px radius. On the left: an
-     18px fold arrow (a Lucide chevron drawn at 16px, `muted`), then an 18px
+     18px fold arrow (a Lucide chevron drawn at 16px, `muted`; `dim` when the
+     space has one tab or none), then an 18px
      rounded-square avatar with the space's first letter in bold white
      10.5px. The avatar colors come from a fixed six-color palette (`#22a99a`,
      `#e3814f`, `#5b8def`, `#8b7cf6`, `#3fae6a`, `#d9649a`) and are stored in
@@ -29,7 +31,9 @@ Everything outside the sidebar list and the top bar is the same as Herdr's
      most 150px wide, truncated), then on the right only what is unusual about
      its git state, in 11.5px `dim`: the repo name when it differs from the
      space name, and the branch unless it is `main`/`master` or matches the
-     name. After that, `↑n` in `ansi2` and `↓n` in `ansi1`.
+     name. After that, `↑n` in `ansi2` and `↓n` in `ansi1`, the status mark
+     when folded, and last an 18px `+` (12px plus icon, `dim`, `foreground`
+     on a `hover` background when hovered) that adds a tab to this space.
    - **Worktree rows** sit under their repo's space, indented by 23px, with
      a branch icon in place of the avatar.
    - **Tab rows**, 26px each, 7px radius, 12.5px text, sit under their space
@@ -49,8 +53,7 @@ Everything outside the sidebar list and the top bar is the same as Herdr's
 
 1. **Top bar**, 42px, `chrome` with a 1px `border` line underneath (this
    layout's `tabs-bar` mod). It has no tab chips: just empty space you can drag
-   the window by, then on the right a 26px `+` (opens the new-tab menu), a
-   **Files** and a **Changes** button (26px tall, a 14px icon and a 12px
+   the window by, then on the right a **Files** and a **Changes** button (26px tall, a 14px icon and a 12px
    label, `selected` while their panel is open), and on Windows/Linux, the
    minimize, maximize and close buttons.
 2. **Terminals** of the active tab, 8px padding and gap. Panes have a 10px
@@ -75,6 +78,10 @@ Agent status on a tab row, and on a folded space's row:
   are kept in the mod's `localStorage` as `tabs.folded`). A folded space shows
   the status mark of the tabs it hides on its own row. An open space shows
   none, since its tabs show their own.
+- **New tab:** the `+` on a space row selects that space if it isn't the
+  active one, then opens Herdr's new-tab menu (terminal, agents, new space,
+  worktrees), which adds the tab to the active space. The row underneath
+  doesn't react to the click.
 - **Highlight:** when a space is open and has tabs, its selected tab gets the
   highlight and the space row doesn't. A folded or tab-less active space
   highlights its own row.
@@ -111,12 +118,13 @@ Agent status on a tab row, and on a folded space's row:
   folder), `machines()`, `layout()` (sidebar width), `theme()`,
   `shared("space.colors")`. Commands: `space.select`, `space.move`,
   `space.new`, `tab.select`, `tab.move`, `tab.rename`, `tab.close`. Overlays:
-  the shipped `menu` mod with `tab: "space"` or `tab: "tab"`.
+  the shipped `menu` mod with `tab: "space"` or `tab: "tab"`, and the
+  shipped `new-menu` (popup, 250 × 512) from each space's `+`.
 - **`mods/tabs-bar/`**: a clone of the shipped `tabs` mod (0.1.13) with
-  the chips removed, keeping the `+`, the panel buttons, the per-space panel
+  the chips and the `+` removed, keeping the panel buttons, the per-space panel
   memory (`localStorage` `panels`) and the window buttons. Commands:
   `layout.show`/`layout.hide`/`layout.select` for the panel, `tab.prev`/`tab.next`,
-  `window.minimize`/`maximize`/`close`. Overlay: shipped `new-menu`. Art:
+  `window.minimize`/`maximize`/`close`. Art:
   `win-min.svg`, `win-max.svg`, `win-restore.svg`, `win-close.svg`.
 - **Shipped art it borrows:** `mods/workspace-chrome/` `chevron-down`,
   `chevron-right`, `spinner`, `branch`, `plus`, `server`, `monitor`;
@@ -138,7 +146,9 @@ Agent status on a tab row, and on a folded space's row:
 - **Tab drags must stay inside a space.** `tab.move` takes an index within
   the tab's own space. A drop on another space's tab is ignored, and so is
   the hover line over it.
-- **Stop propagation** on the fold arrow, the tab rows and ×: otherwise the
+- **`new-menu` only knows the active space.** It takes no space argument, so
+  the row's `+` runs `space.select` before opening it.
+- **Stop propagation** on the fold arrow, the `+`, the tab rows and ×: otherwise the
   press reaches the space row underneath and starts a space drag or a
   double-click fold.
 - **Reset the drag on the list too.** The list's own mouse-up clears both
@@ -152,8 +162,10 @@ Agent status on a tab row, and on a folded space's row:
 
 - `herdr-app check` passes for `mods/nested-tabs` and `mods/tabs-bar`, and
   `layout.switch {"name":"nested-tabs"}` shows the window above.
-- Every space lists its tabs under it. A new tab (`+` in the top bar)
-  appears under the active space, and closing one removes its row.
+- Every space lists its tabs under it, and closing a tab removes its row.
+- The `+` on another space's row switches to that space and opens the
+  new-tab menu; the new tab appears under that space. The top bar has no `+`.
+- A space with one tab shows a dimmer arrow than one with several.
 - Clicking a tab in another space switches to that space and tab.
 - The arrow and a double-click on the space row both fold and unfold, and the
   fold is still there after restarting Herdr.
