@@ -69,6 +69,7 @@ export default class Spaces extends View {
     this.over = null;
     this.tabPressed = null;
     this.tabOver = null;
+    this.hovered = null; // row under the pointer ("space-<id>" / "tab-<id>"): shows its + or ×
     this.tabsFolded = new Set(JSON.parse(localStorage.getItem("tabs.folded") ?? "[]"));
     this.machines = [];
     this.reconnecting = JSON.parse(localStorage.getItem("machines.reconnecting") ?? "{}");
@@ -400,16 +401,27 @@ export default class Spaces extends View {
       .child(svg(`mods/workspace-chrome/chevron-${open ? "down" : "right"}.svg`).size(16));
   }
 
-  // New tab, on the active space's row only: drawn like a tab row's ×, at the
-  // same right edge. Opens the menu the top bar's + used (it adds to the active space).
+  // New tab, on the active or hovered space's row: drawn like a tab row's ×, at
+  // the same right edge. Opens the menu the top bar's + used (it adds to the
+  // active space, so another space is selected first).
   addTab(w, t) {
     return div().id(`add-${w.id}`).flex_none().text_color(t.dim).hover((s) => s.text_color(t.foreground))
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
       .on_click((_e, cx) => {
         cx.stop_propagation();
+        if (!w.active) run("space.select", { id: w.id });
         openOverlay({ mod: "new-menu", kind: "popup", width: 250, height: 512 });
       })
       .child(svg("mods/workspace-chrome/plus.svg").size(12));
+  }
+
+  // Remember which row the pointer is on, so it can show its + or ×.
+  hover(key) {
+    return (on, cx) => {
+      if (on) this.hovered = key;
+      else if (this.hovered === key) this.hovered = null;
+      cx.notify();
+    };
   }
 
   // Working: spinner. Blocked or done: a dot in its color. Idle: nothing.
@@ -465,6 +477,7 @@ export default class Spaces extends View {
           }
           cx.notify();
         })
+        .on_hover(this.hover(`tab-${c.id}`))
         .on_mouse_down("right", (_e, cx) => {
           cx.stop_propagation();
           openOverlay({ mod: "menu", kind: "popup", width: 200, props: { tab: "tab", target: { id: c.id, space: w.id } } });
@@ -473,7 +486,7 @@ export default class Spaces extends View {
           .when(Boolean(program?.icon), (el) => el.child(program.tint ? svg(program.icon).size(14).text_color(t.muted) : image(program.icon).size(14))))
         .child(div().flex_1().min_w(0).truncate().child(c.zoomed ? `${name} Z` : name))
         .when(Boolean(mark), (el) => el.child(mark))
-        .when(on, (el) => el.child(div().id(`close-${c.id}`).flex_none().text_color(t.dim).hover((s) => s.text_color(t.foreground))
+        .when(on || this.hovered === `tab-${c.id}`, (el) => el.child(div().id(`close-${c.id}`).flex_none().text_color(t.dim).hover((s) => s.text_color(t.foreground))
           .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
           .on_click((_e, cx) => { cx.stop_propagation(); run("tab.close", { id: c.id }); })
           .child(svg("mods/pane/close.svg").size(12))));
@@ -529,6 +542,7 @@ export default class Spaces extends View {
         } else if (from === w.id) run("space.select", { id: w.id });
         cx.notify();
       })
+      .on_hover(this.hover(`space-${w.id}`))
       .on_mouse_down("right", () => this.menu(w))
       .child(
         h_flex()
@@ -542,7 +556,7 @@ export default class Spaces extends View {
           .child(div().flex_shrink(0).max_w(150).truncate().text_color(t.foreground).child(w.name))
           .child(g ? this.gitTail(g, tree, w.name, t) : div().flex_1())
           .when(Boolean(mark), el => el.child(mark))
-          .when(w.active, el => el.child(this.addTab(w, t))),
+          .when(w.active || this.hovered === `space-${w.id}`, el => el.child(this.addTab(w, t))),
       );
   }
 

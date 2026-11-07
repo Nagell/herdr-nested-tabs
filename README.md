@@ -57,7 +57,7 @@ sidebar, under the space they belong to.
   double-click anywhere else on the space's row. With one tab the triangle is
   dimmed.
 - The active space's row has a `+`, drawn like the tab's ×, that opens the
-  new-tab menu for it.
+  new-tab menu for it. Hovering any space or tab row shows its `+` or ×.
 - A tab row looks like a tab in the top bar: program icon, name, a spinner while
   an agent works, a dot when it is blocked or done, and × on the selected tab.
 - Click selects (in any space), double-click renames, right-click opens the tab
