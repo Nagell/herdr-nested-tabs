@@ -13,7 +13,20 @@
   - Watch out / Done when: new pitfalls, and a check per new behavior.
 - Update the README feature list and roadmap with it.
 - Look changed → retake `preview.png` (below).
-- After rebasing onto a newer Herdr `spaces`/`tabs`: bump `cloned_from` in the layout and both `mod.json` files, and "0.1.13" in `RECIPE.md` and `README.md`.
+
+## Updating to a newer Herdr
+
+- Our mods are copies of Herdr's built-in ones: `nested-tabs` ← `spaces`, `tabs-bar` ← `tabs`, and the layout ← `main`. The base version is in `cloned_from`. Herdr never updates copies.
+- Newest release: `gh api repos/herdrdev/herdr-app/tags -q '.[0].name'`. Installed: `herdr-app --version`.
+- What changed upstream (`OLD` = our base, `NEW` = newest):
+  - `gh api repos/herdrdev/herdr-app/compare/vOLD...vNEW -q '.files[].filename' | grep -E 'defaults/(mods/(spaces|tabs)/|layouts/main|AGENTS.md)'`
+  - Per file: `gh api "repos/herdrdev/herdr-app/compare/vOLD...vNEW" -q '.files[] | select(.filename=="defaults/mods/spaces/main.js") | .patch'`
+- Apply those upstream changes to our copies and keep our own changes (tab rows, folding, `+`, hover; no chips or `+` in `tabs-bar`). Asset paths stay `mods/tabs-bar/...`.
+- Layout: our copy should equal the new `main.json` except `spaces` → `nested-tabs` and `tabs` → `tabs-bar`.
+- `defaults/AGENTS.md` changed → check for renamed or removed `herdr` APIs and commands.
+- Remove workarounds for bugs fixed upstream (search the code for "until", "patch", issue numbers).
+- `herdr-app check` both mods, then try it in Herdr against "Done when" in `RECIPE.md`.
+- Bump `cloned_from` in the layout and both `mod.json` files, and the version in `RECIPE.md` and `README.md`. Update the recipe where behavior changed.
 
 ## Retaking preview.png
 
