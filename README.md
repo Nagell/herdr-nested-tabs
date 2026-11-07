@@ -122,7 +122,7 @@ these files, they are clones and not its shipped mods.
 - [x] Tab status (working, blocked, done) in the sidebar
 - [x] Top bar without tab chips
 - [ ] Merge the changes from newer Herdr releases of `spaces` and `tabs`
-- [ ] `RECIPE.md` and the `herdr-layout` topic for [herdr.dev/layouts](https://herdr.dev/layouts)
+- [x] `RECIPE.md` and the `herdr-layout` topic for [herdr.dev/layouts](https://herdr.dev/layouts)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
