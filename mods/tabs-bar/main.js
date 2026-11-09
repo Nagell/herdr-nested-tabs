@@ -1,6 +1,6 @@
-import { View, div, svg } from "gpui-kit";
+import { View, div, svg, image } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { spaces, run, theme, window, shared, layout, settings } from "herdr";
+import { spaces, panes, run, openOverlay, props, theme, window, shared, layout, settings } from "herdr";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -12,9 +12,11 @@ function find(node, id) {
 }
 
 // Herdr's tab bar without the tab chips: tabs are listed in the nested-tabs sidebar.
+// Props: `chips: true` brings the shipped bar's tab chips back, for tabs in both places.
 export default class Tabs extends View {
   init() {
     this.panels = JSON.parse(localStorage.getItem("panels") ?? "{}");
+    this.pressed = null;
   }
 
   // The side panel is remembered per space: switching shows that space's choice
@@ -59,6 +61,16 @@ export default class Tabs extends View {
     const panel = find(root, "panel"), body = find(root, "panel-body");
     const enabled = shared("workspace.panels") ?? ["files", "changes"];
     this.syncPanel(space, panel, body, enabled);
+    // Over9k's Timeline (over9k-prompts), only in a layout whose panel holds it.
+    const timeline = (body?.children ?? []).some(c => c.id === "prompts") && (shared("sidebar.options") ?? {}).timeline !== false;
+    // The Timeline opens only from its button: switching agents also turns the
+    // panel to it, and that is undone, back to what showed.
+    const showing = panel && !panel.hidden ? body?.active ?? null : null;
+    if (this.shown === undefined) this.shown = showing;
+    else if (showing === "prompts" && this.shown !== "prompts" && Date.now() - (this.timelineAt ?? 0) > 2000) {
+      if (this.shown) run("layout.select", { stack: "panel-body", child: this.shown });
+      else run("layout.hide", { id: "panel" });
+    } else this.shown = showing;
     const panelButton = (id, label, icon) => {
       const on = panel && !panel.hidden && body?.active === id;
       return h_flex().id(`panel-${id}`).h(26).px(8).gap(5).flex_none().items_center().rounded(6)
@@ -66,14 +78,40 @@ export default class Tabs extends View {
         .hover(s => s.bg(t.hover)).on_mouse_down("left", stop)
         .on_click(() => {
           if (on) run("layout.hide", { id: "panel" });
-          else { run("layout.select", { stack: "panel-body", child: id }); run("layout.show", { id: "panel" }); }
+          else {
+            if (id === "prompts") this.timelineAt = Date.now();
+            run("layout.select", { stack: "panel-body", child: id }); run("layout.show", { id: "panel" });
+          }
         }).child(svg(icon).size(14)).child(label);
     };
+    // The shipped bar's tab chips, unchanged: icon, name, status, × on the selected one.
+    const shown = props()?.chips ? space?.tabs ?? [] : [];
+    const item = (c, i) => {
+      const program = panes().find(p => p.tab === c.id && p.program?.agent)?.program ?? panes().find(p => p.tab === c.id)?.program;
+      const name = /^tb\d+$/.test(c.name) ? program?.name ?? "Terminal" : c.name;
+      return h_flex().id(`tab-${c.id}`).h(29).px(10).gap(7).rounded(7).items_center().flex_none().text_size(12.8)
+        .border(1).border_color(c.active ? t.border : t.chrome).bg(c.active ? t.raised : t.chrome).text_color(c.active ? t.foreground : t.muted)
+        .hover(s => s.bg(t.hover))
+        .on_mouse_down("left", (e, cx) => { cx.stop_propagation(); this.pressed = i; if (e.click_count === 2) run("tab.rename", { id: c.id }); })
+        .on_mouse_up("left", () => {
+          const from = this.pressed; this.pressed = null;
+          if (from !== null && from !== i) run("tab.move", { id: shown[from].id, index: space.tabs.findIndex(x => x.id === c.id) + 1 });
+          else run("tab.select", { id: c.id });
+        })
+        .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openOverlay({ mod: "menu", kind: "popup", width: 200, props: { tab: "tab", target: { id: c.id, space: space.id } } }); })
+        .when(Boolean(program?.icon), el => el.child(program.tint ? svg(program.icon).size(14).text_color(t.muted) : image(program.icon).size(14)))
+        .child(div().max_w(170).truncate().child(c.zoomed ? `${name} Z` : name))
+        .when(c.status === "working", el => el.child(svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900)))
+        .when(c.status === "blocked" || c.status === "done", el => el.child(div().size(6).rounded(3).bg(t[c.status])))
+        .when(c.active, el => el.child(div().id(`close-${c.id}`).text_color(t.dim).on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); run("tab.close", { id: c.id }); }).child(svg("mods/pane/close.svg").size(12))));
+    };
     return h_flex().size_full().min_w(0).px(10).pl(lightsPadding).gap(3).items_center().bg(t.chrome).border_b(1).border_color(t.border)
+      .on_mouse_up("left", () => { this.pressed = null; })
       .on_scroll_wheel(e => { if (Math.abs(e.delta.y) >= 1) run(e.delta.y > 0 ? "tab.prev" : "tab.next"); })
-      .child(div().flex_1().min_w(0).h_full())
+      .child(h_flex().id("tab-scroll").flex_1().min_w(0).h_full().items_center().gap(3).overflow_x_scrollbar().children(shown.map(item)))
       .when(enabled.includes("files"), el => el.child(panelButton("files", "Files", "mods/files/file.svg")))
       .when(enabled.includes("changes"), el => el.child(panelButton("changes", "Changes", "mods/changes/changes.svg")))
+      .when(timeline, el => el.child(panelButton("prompts", "Timeline", "mods/over9k-prompts/timeline.svg")))
       .when(w?.buttons, el => el.child(button("minimize", w.platform === "windows" ? svg("mods/tabs-bar/win-min.svg").size(16) : "−", () => run("window.minimize")))
         .child(button("maximize", w.platform === "windows" ? svg(`mods/tabs-bar/${w.maximized ? "win-restore" : "win-max"}.svg`).size(16) : "□", () => run("window.maximize")))
         .child(button("close-window", w.platform === "windows" ? svg("mods/tabs-bar/win-close.svg").size(16) : svg("mods/pane/close.svg").size(13), () => run("window.close"))));

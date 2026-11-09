@@ -65,8 +65,21 @@ sidebar, under the space they belong to.
 - A folded space shows its most urgent agent status on its own row.
 - Worktree spaces stay nested under their repo's space, as in Herdr, and list
   their own tabs under them.
+- Claude Code agents show their details after the name: model, effort, context
+  used and how long since they last replied, e.g. `Opus 5.5 · H · 19% · 4m`.
+  When the sidebar is narrow the effort shortens to its capitals, then the model
+  goes, then the name is cut; the context and the time always stay. A tab with
+  several terminals lists each one under it.
+- Running sub-agents are counted in a chip after the agent; a click on it lists
+  them, and it stays closed until you open it.
+- **Compact** (details on the name's line) or **Detailed** (details under the
+  name): the switch in the Spaces header, or a key bound to `nested-tabs.details`
+  (`keys.json` suggests `cmd-shift-i`).
 - The top bar keeps Files, Changes and the per-space panel memory; the tab
-  chips and its `+` are gone.
+  chips and its `+` are gone. With `"props": {"chips": true}` on the layout's
+  `tabs` block the chips come back, for tabs in both places.
+- With Over9k's Timeline (`over9k-prompts`) in the side panel as a block with
+  id `prompts`, the top bar gets a **Timeline** button.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -99,6 +112,9 @@ sidebar, under the space they belong to.
    cp herdr-nested-tabs/layouts/nested-tabs.json ~/.config/herdr-app/layouts/
    ```
 
+   Optional: merge `keys.json` into `~/.config/herdr-app/keys.json` for the
+   Compact/Detailed key.
+
 3. Check both mods
 
    ```sh
@@ -123,7 +139,10 @@ these files, they are clones and not its shipped mods.
 - [x] List tabs under each space
 - [x] Fold and unfold a space's tabs (triangle or double-click)
 - [x] Tab status (working, blocked, done) in the sidebar
-- [x] Top bar without tab chips
+- [x] Top bar without tab chips (chips as an option)
+- [x] Agent details and sub-agents in the sidebar, compact or detailed
+- [x] Timeline button when the panel holds Over9k's Timeline
+- [ ] Retake `preview.png` with the agent details
 - [ ] Merge the changes from newer Herdr releases of `spaces` and `tabs`
 - [x] `RECIPE.md` and the `herdr-layout` topic for [herdr.dev/layouts](https://herdr.dev/layouts)
 
@@ -138,6 +157,10 @@ Distributed under the Apache License 2.0. See `LICENSE` for more information.
 `tabs` mods shipped with [Herdr](https://github.com/herdrdev/herdr-app)
 (Apache-2.0). `nested-tabs` adds the tab rows, folding and folded status;
 `tabs-bar` removes the tab chips.
+
+`mods/nested-tabs/claude-info.py` and `mods/nested-tabs/subagents.sh` come
+unchanged from [Over9k](https://github.com/herunan/herdr-over9k) (MIT, see
+`mods/nested-tabs/LICENSE-over9k`).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

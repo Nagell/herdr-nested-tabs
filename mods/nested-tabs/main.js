@@ -3,10 +3,12 @@
 // its first terminal is in now, only where unusual: branch, ahead/behind. Agent state lives in the agents list, not here. Click to
 // switch, right-click for its menu, drag to reorder.
 // Each space lists its tabs under it, before its worktrees; the triangle folds them.
+// A Claude Code agent's model, effort, context and sub-agents come from its own
+// session files (claude-info.py, subagents.sh: from Over9k, MIT, LICENSE-over9k).
 
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout } from "herdr";
+import { spaces, machines, panes, agents, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout, readTextFile, appHome, nextCommand } from "herdr";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -41,6 +43,34 @@ const FALLBACK = 60000;
 // What a stored color name looks like on an avatar (the same in every mod
 // that draws space avatars): one strong color per hue, light and dark alike.
 const MARK = { ansi6: "#22a99a", ansi3: "#e3814f", ansi4: "#5b8def", ansi5: "#8b7cf6", ansi2: "#3fae6a", ansi1: "#d9649a" };
+
+const isClaude = (a) => a.app === "claude-code" || a.program?.key === "claude";
+// Claude Code puts a status glyph before the conversation's name in its title.
+const agentTitle = (a) => (a.title ?? "").replace(/^[^\p{L}\p{N}]+/u, "").trim();
+let PY;
+const python = (args) => (PY ??= exec("python3", ["-c", "1"]).then((r) => (r?.code === 0 ? "python3" : "python"), () => "python"))
+  .then((py) => exec(py, args));
+
+// An effort shortened to its words' capitals (high → H, xhigh → XH); "max" stays
+// whole so it doesn't read as medium's M.
+function effortShort(e) {
+  if (!e) return null;
+  if (e === "max") return "MAX";
+  return e.split(/[\s_-]+/).flatMap((w) => (/^x[a-z]{3,}$/.test(w) ? ["x", w.slice(1)] : [w]))
+    .filter(Boolean).map((w) => w[0].toUpperCase()).join("");
+}
+
+// How long since the agent last replied: "4m", "3h", "2d".
+function ago(i) {
+  if (!i?.lastAt) return null;
+  const m = Math.max(0, Math.round((Date.now() / 1000 - i.lastAt) / 60));
+  return m < 60 ? `${m}m` : m < 1440 ? `${Math.round(m / 60)}h` : `${Math.round(m / 1440)}d`;
+}
+
+// gpui-kit can't measure text, so whether details fit is judged by characters.
+const DETAIL_CH = 6.2;
+const NAME_CH = 7.2;
+const NAME_MIN = 9;
 
 // A space speaks up only when something in it needs you.
 export function glyph(status) {
@@ -77,6 +107,19 @@ export default class Spaces extends View {
     this.folded = new Set(JSON.parse(localStorage.getItem("machines.folded") ?? "[]"));
     this.refreshMachines(cx);
     cx.timer.every(15000, cx => this.refreshMachines(cx));
+    this.info = {}; // agent address -> { model, effort, context, lastAt, transcript }
+    this.subs = {}; // agent address -> its running sub-agents
+    this.subsOpen = new Set(JSON.parse(localStorage.getItem("agents.subsOpen") ?? "[]"));
+    this.detailed = localStorage.getItem("agents.detailed") === "1";
+    this.loadInfo(cx);
+    cx.timer.every(5000, (cx) => this.loadInfo(cx));
+    cx.timer.every(60000, (cx) => cx.notify()); // the "4m"s move on
+    cx.spawn(async (cx) => {
+      for (;;) {
+        if ((await nextCommand()) === "details") this.setDetailed(!this.detailed);
+        cx.notify();
+      }
+    });
     // `git status` walks the whole tree, on another machine a process there:
     // only when its answer could have changed (see `due`).
     cx.timer.every(250, (cx) => this.checkNew(cx));
@@ -309,7 +352,8 @@ export default class Spaces extends View {
   grouped(t, collapsed) {
     const rows = this.ordered();
     const ps = panes();
-    const draw = (r) => (collapsed ? [this.compact(r, t)] : [this.row(r, t), ...this.tabRows(r, t, ps)]);
+    const byPane = new Map(agents().map((a) => [a.pane, a]));
+    const draw = (r) => (collapsed ? [this.compact(r, t)] : [this.row(r, t), ...this.tabRows(r, t, ps, byPane)]);
     const remote = [...new Set([...rows.map(r => r.w.machine).filter(Boolean), ...this.machines.map(m => m.name), ...Object.keys(this.reconnecting)])].sort();
     const loading = m => {
       const layout = machines().find(k => k.name === m)?.layout;
@@ -378,6 +422,160 @@ export default class Spaces extends View {
       .when(g.behind > 0, (el) => el.child(div().flex_none().text_color(t.ansi1).child(`\u2193${g.behind}`)));
   }
 
+  // Each local Claude Code agent's details, and its sub-agents, from Claude Code's
+  // own files. One look at a time; a stuck one is given up after a minute.
+  loadInfo(cx) {
+    if (this.infoBusy && Date.now() - this.infoBusy < 60000) return;
+    this.infoBusy = Date.now();
+    cx.spawn(async (cx) => {
+      const info = {}, subs = {};
+      try {
+        const claude = agents().filter((a) => !a.address.includes("/") && isClaude(a));
+        if (claude.length) {
+          const dir = `${appHome()}/mods/nested-tabs`;
+          this.ciScript ??= await readTextFile(`${dir}/claude-info.py`).catch(() => null);
+          this.subScript ??= await readTextFile(`${dir}/subagents.sh`).catch(() => null);
+          const r = this.ciScript ? await python(["-c", this.ciScript]).catch(() => null) : null;
+          let all = {};
+          try { all = JSON.parse(r?.stdout || "{}"); } catch {}
+          for (const a of claude) {
+            const i = all[a.address];
+            if (!i) continue;
+            info[a.address] = i;
+            if (!this.subScript || !i.transcript) continue;
+            const s = await exec("sh", ["-c", this.subScript, "sh", i.transcript]).catch(() => null);
+            const running = (s?.stdout ?? "").split("\n").filter(Boolean).map((l) => {
+              const [id, at, desc, type, model, , , effort, , done] = l.split("\t");
+              return { id, at: +at, desc, type, model, effort: effort || null, done: done === "1" };
+            }).filter((x) => !x.done).sort((x, y) => y.at - x.at);
+            if (running.length) subs[a.address] = running;
+          }
+        }
+      } finally {
+        this.infoBusy = null;
+      }
+      const next = JSON.stringify([info, subs]);
+      if (next !== this.infoKey) {
+        this.infoKey = next;
+        this.info = info;
+        this.subs = subs;
+        cx.notify();
+      }
+    });
+  }
+
+  setDetailed(on) {
+    this.detailed = on;
+    localStorage.setItem("agents.detailed", on ? "1" : "0");
+  }
+
+  // What follows an agent's name. Out of room, it gives way in this order: effort
+  // shortens to its capitals, the model goes, then the name truncates; the context
+  // and the time since its last reply always stay. `room`: px for name and details.
+  fit(a, i, room, nameLen) {
+    const pct = i.context == null ? null : Math.round(i.context);
+    const when = a.status === "working" ? null : ago(i);
+    let model = i.model, effort = i.effort;
+    const width = () => [model, effort, pct == null ? null : `${pct}%`, when].filter(Boolean).join(" · ").length * DETAIL_CH;
+    const name = Math.min(nameLen, NAME_MIN) * NAME_CH;
+    if (name + width() > room) effort = effortShort(i.effort);
+    if (name + width() > room) model = null;
+    return { model, effort, pct, when };
+  }
+
+  // "Opus 5.5 · H · 19% · 4m": context green, yellow from 50%, red from 80%.
+  detailLine(d, t) {
+    const parts = [
+      d.model && div().child(d.model),
+      d.effort && div().child(d.effort),
+      d.pct != null && div().text_color(d.pct >= 80 ? t.ansi1 : d.pct >= 50 ? t.ansi3 : t.ansi2).child(`${d.pct}%`),
+      d.when && div().child(d.when),
+    ].filter(Boolean);
+    const dotted = parts.flatMap((p, n) => (n ? [div().child("·"), p] : [p]));
+    return h_flex().flex_none().gap(4).items_center().text_size(11).text_color(t.dim).children(dotted);
+  }
+
+  // How many sub-agents an agent has running; a click shows or hides them.
+  subsChip(addr, t) {
+    const open = this.subsOpen.has(addr);
+    return h_flex().id(`subs-${addr}`).h(16).px(4).gap(3).flex_none().items_center().rounded(4)
+      .bg(t.raised).text_size(10.5).text_color(t.foreground).hover((s) => s.bg(t.hover))
+      .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+      .on_click((_e, cx) => {
+        cx.stop_propagation();
+        if (open) this.subsOpen.delete(addr);
+        else this.subsOpen.add(addr);
+        localStorage.setItem("agents.subsOpen", JSON.stringify([...this.subsOpen]));
+        cx.notify();
+      })
+      .child(String(this.subs[addr].length))
+      .child(svg(`mods/workspace-chrome/chevron-${open ? "down" : "right"}.svg`).size(8));
+  }
+
+  // An agent's name and details: on one line (compact), or the details under the
+  // name (detailed). `room` is what the row leaves for both.
+  nameAndDetails(name, a, room, t) {
+    const i = a && this.info[a.address];
+    if (!i) return div().flex_1().min_w(0).truncate().child(name);
+    if (this.detailed) {
+      return v_flex().flex_1().min_w(0)
+        .child(div().truncate().line_height("15px").child(name))
+        .child(this.detailLine(this.fit(a, i, room, 0), t).line_height("13px"));
+    }
+    return h_flex().flex_1().min_w(0).gap(6).items_center()
+      .child(div().min_w(0).truncate().child(name))
+      .child(this.detailLine(this.fit(a, i, room, [...name].length), t));
+  }
+
+  // The px a row leaves for its name and details: the list's width less its
+  // indent, icon, gaps and what sits at its end.
+  room(indent, ends) {
+    const sidebar = find(layout(), "sidebar")?.size?.px ?? 268;
+    return sidebar - 16 - indent - ROW_PAD - CHEVRON - 7 * 3 - ends;
+  }
+
+  // An agent's running sub-agents, under it while its chip is open.
+  subRows(addr, indent, t) {
+    if (!this.subsOpen.has(addr)) return [];
+    return (this.subs[addr] ?? []).map((s) => h_flex().id(`sub-${addr}-${s.id}`).h(22).flex_none().pl(indent).pr(ROW_PAD).gap(7).items_center()
+      .text_size(12).text_color(t.muted)
+      .child(h_flex().size(CHEVRON).flex_none().items_center().justify_center()
+        .child(svg("mods/workspace-chrome/spinner.svg").size(10).text_color(t.dim).spin(1800)))
+      .child(div().flex_1().min_w(0).truncate().child(s.desc || s.type || "sub-agent"))
+      .when(Boolean(s.type), (el) => el.child(div().flex_none().text_size(11).text_color(t.dim).child(s.type))));
+  }
+
+  // A tab with several terminals lists each under it: an agent with its details,
+  // or a plain terminal. A click focuses that pane.
+  paneRows(w, c, list, indent, byPane, t) {
+    return list.flatMap((p) => {
+      const a = byPane.get(p.pane);
+      const on = w.active && c.active && p.focused;
+      const name = a ? agentTitle(a) || a.program?.name || "Agent" : p.program?.name ?? (p.title || "Terminal");
+      const prog = (a ?? p).program;
+      const mark = a ? this.status(a.status, t) : null;
+      const chip = a && this.subs[a.address]?.length ? this.subsChip(a.address, t) : null;
+      const room = this.room(indent, (mark ? 19 : 0) + (chip ? 36 : 0));
+      const row = h_flex().id(`pane-${p.pane}`).h(this.detailed && a && this.info[a.address] ? 36 : 26).flex_none().pl(indent).pr(ROW_PAD).gap(7).items_center().rounded(7)
+        .text_size(12.5).text_color(on ? t.foreground : t.muted)
+        .when(on, (el) => el.bg(t.hover))
+        .hover((s) => s.bg(t.hover))
+        .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+        .on_click((_e, cx) => {
+          if (!w.active) run("space.select", { id: w.id });
+          if (!c.active) run("tab.select", { id: c.id });
+          run("pane.focus", { pane: p.pane });
+          cx.notify();
+        })
+        .child(h_flex().size(CHEVRON).flex_none().items_center().justify_center()
+          .when(Boolean(prog?.icon), (el) => el.child(prog.tint ? svg(prog.icon).size(14).text_color(t.muted) : image(prog.icon).size(14))))
+        .child(this.nameAndDetails(name, a, room, t))
+        .when(Boolean(mark), (el) => el.child(mark))
+        .when(Boolean(chip), (el) => el.child(chip));
+      return [row, ...(a ? this.subRows(a.address, indent + TREE_INDENT, t) : [])];
+    });
+  }
+
   tabsOpen(w) {
     return !this.tabsFolded.has(w.id);
   }
@@ -432,18 +630,26 @@ export default class Spaces extends View {
   }
 
   // A space's tabs, as the top tab bar drew them: program icon, name, status, close on the shown one.
-  tabRows({ w, tree }, t, ps) {
+  // A tab with one terminal carries its agent's details on its own row; one with
+  // several lists them under it (paneRows).
+  tabRows({ w, tree }, t, ps, byPane) {
     if (!this.tabsOpen(w)) return [];
     const indent = ROW_PAD + TREE_INDENT + (tree ? TREE_INDENT : 0);
     // Tabs move only within their space, so a drag shows feedback only there.
     const dragged = (w.tabs ?? []).find((x) => x.id === this.tabPressed);
-    return (w.tabs ?? []).map((c) => {
+    return (w.tabs ?? []).flatMap((c) => {
       const program = ps.find((p) => p.tab === c.id && p.program?.agent)?.program ?? ps.find((p) => p.tab === c.id)?.program;
       const name = /^tb\d+$/.test(c.name) ? program?.name ?? "Terminal" : c.name;
       const on = w.active && c.active;
       const mark = this.status(c.status, t);
       const target = dragged && this.tabOver === c.id && dragged.id !== c.id;
-      return h_flex().relative().id(`tab-${c.id}`).h(26).flex_none().pl(indent).pr(ROW_PAD).gap(7).items_center().rounded(7)
+      const list = ps.filter((p) => p.tab === c.id && p.terminal);
+      const a = list.length === 1 ? byPane.get(list[0].pane) : null;
+      const chip = a && this.subs[a.address]?.length ? this.subsChip(a.address, t) : null;
+      const closing = on || this.hovered === `tab-${c.id}`;
+      const room = this.room(indent, (mark ? 19 : 0) + (chip ? 36 : 0) + (closing ? 19 : 0));
+      const tall = this.detailed && a && this.info[a.address];
+      const row = h_flex().relative().id(`tab-${c.id}`).h(tall ? 36 : 26).flex_none().pl(indent).pr(ROW_PAD).gap(7).items_center().rounded(7)
         .text_size(12.5).text_color(on ? t.foreground : t.muted)
         .when(on, (el) => el.bg(t.selected))
         .when(!on, (el) => el.hover((s) => s.bg(t.hover)))
@@ -484,12 +690,15 @@ export default class Spaces extends View {
         })
         .child(h_flex().size(CHEVRON).flex_none().items_center().justify_center()
           .when(Boolean(program?.icon), (el) => el.child(program.tint ? svg(program.icon).size(14).text_color(t.muted) : image(program.icon).size(14))))
-        .child(div().flex_1().min_w(0).truncate().child(c.zoomed ? `${name} Z` : name))
+        .child(this.nameAndDetails(c.zoomed ? `${name} Z` : name, a, room, t))
         .when(Boolean(mark), (el) => el.child(mark))
-        .when(on || this.hovered === `tab-${c.id}`, (el) => el.child(div().id(`close-${c.id}`).flex_none().text_color(t.dim).hover((s) => s.text_color(t.foreground))
+        .when(Boolean(chip), (el) => el.child(chip))
+        .when(closing, (el) => el.child(div().id(`close-${c.id}`).flex_none().text_color(t.dim).hover((s) => s.text_color(t.foreground))
           .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
           .on_click((_e, cx) => { cx.stop_propagation(); run("tab.close", { id: c.id }); })
           .child(svg("mods/pane/close.svg").size(12))));
+      if (list.length > 1) return [row, ...this.paneRows(w, c, list, indent + TREE_INDENT, byPane, t)];
+      return [row, ...(a ? this.subRows(a.address, indent + TREE_INDENT, t) : [])];
     });
   }
 
@@ -591,7 +800,13 @@ export default class Spaces extends View {
     if (changed) setShared("space.colors", kept);
     return v_flex().size_full().min_h(0).bg(t.chrome).text_size(13)
       .child(h_flex().h(31).pl(16).pr(10).items_center().justify_between().text_size(11.5).text_color(t.dim)
-        .when(!collapsed, el => el.child("Spaces"))
+        .when(!collapsed, el => el.child(div().flex_1().child("Spaces"))
+          // Agent rows: details on the name's line, or under it.
+          .child(div().id("agents-detailed").h(22).px(6).mr(2).flex_none().flex().items_center().rounded(5)
+            .text_color(this.detailed ? t.foreground : t.dim).when(this.detailed, s => s.bg(t.selected))
+            .hover(s => s.bg(t.hover).text_color(t.foreground))
+            .on_click((_e, cx) => { this.setDetailed(!this.detailed); cx.notify(); })
+            .child(this.detailed ? "Detailed" : "Compact")))
         .child(div().id("space-new").size(26).flex_none().flex().items_center().justify_center().rounded(6).hover(s => s.bg(t.hover).text_color(t.foreground))
           .on_click(() => run("space.new")).child(svg("mods/workspace-chrome/plus.svg").size(14))))
       .child(v_flex().flex_1().min_h(0).px(8).pb(14).overflow_y_scrollbar().mode("always")

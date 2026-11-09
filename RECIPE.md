@@ -3,8 +3,10 @@
 Herdr's default window with the tabs moved out of the top bar and into the
 Spaces sidebar. Each space lists its own tabs right under it, so you can see
 what every space is running, and which agent needs you, without switching
-spaces. New tabs come from a `+` on the space's row. The top bar keeps
-Files and Changes and loses its tab chips and its `+`.
+spaces. Claude Code agents show their model, effort, context and time since
+their last reply, and how many sub-agents they run. New tabs come from a `+`
+on the space's row. The top bar keeps Files and Changes and loses its tab
+chips and its `+`.
 
 ![Nested Tabs](preview.png)
 
@@ -19,8 +21,9 @@ Everything outside the sidebar list and the top bar is the same as Herdr's
    window by it.
 2. **Spaces list** (this layout's `nested-tabs` mod) and **Agents list**
    (shipped `agents`). The two split the height equally, each at least 90px.
-   - Header, 31px: "Spaces" in 11.5px `dim`, and a 26px `+` button on the
-     right that makes a new space.
+   - Header, 31px: "Spaces" in 11.5px `dim`, then on the right a 22px
+     **Compact**/**Detailed** switch (`dim`; `foreground` on `selected` while
+     Detailed) and a 26px `+` button that makes a new space.
    - **Space row**, 30px (28px for a worktree), 8px radius. On the left: an
      18px fold arrow (a Lucide chevron drawn at 16px, `muted`; `dim` when the
      space has one tab or none), then an 18px
@@ -46,6 +49,18 @@ Everything outside the sidebar list and the top bar is the same as Herdr's
      its name. The selected tab in the active space is drawn in
      `foreground` on `selected` with a 12px × close. Other tabs are `muted`
      and show the × only while hovered.
+   - **Agent details**, in 11px `dim` after the name, joined by `·`: model,
+     effort, context used (`ansi2` under 50%, `ansi3` from 50%, `ansi1` from
+     80%) and the time since its last reply (`4m`, `3h`, `2d`; not while it
+     works). Only for Claude Code agents on this computer. A tab with one
+     terminal shows them on its own row; a tab with several lists each
+     terminal under it as a 26px row (23px further in): an agent with its
+     title (the conversation's name) and details, or a plain terminal with its
+     program's name. Detailed puts the details on a second line (36px rows).
+   - **Sub-agent chip** after an agent with sub-agents running: 16px, 4px
+     radius, `raised`, the count in 10.5px `foreground` and an 8px chevron.
+     Open, each running sub-agent gets a 22px row under the agent: a dim 10px
+     spinner, its description in 12px `muted`, its type in 11px `dim`.
    - With more than one machine connected, the rows are grouped under a 26px
      header per machine ("This computer", then each remote one), each with a
      `+`, a green or dim connection dot and its own fold arrow.
@@ -56,8 +71,11 @@ Everything outside the sidebar list and the top bar is the same as Herdr's
 1. **Top bar**, 42px, `chrome` with a 1px `border` line underneath (this
    layout's `tabs-bar` mod). It has no tab chips: just empty space you can drag
    the window by, then on the right a **Files** and a **Changes** button (26px tall, a 14px icon and a 12px
-   label, `selected` while their panel is open), and on Windows/Linux, the
-   minimize, maximize and close buttons.
+   label, `selected` while their panel is open), a **Timeline** button the same
+   way when the side panel holds a block with id `prompts`, and on
+   Windows/Linux, the minimize, maximize and close buttons. With
+   `"props": {"chips": true}` on the `tabs` block, the shipped bar's tab chips
+   (29px, icon, name, status, × on the selected one) fill the left side again.
 2. **Terminals** of the active tab, 8px padding and gap. Panes have a 10px
    radius, a 1px `border` (`accent` when focused) and a 30px header
    (shipped `pane`).
@@ -107,6 +125,22 @@ Agent status on a tab row, and on a folded space's row:
   every 60s while the window is in front.
 - **Narrow sidebar** (under 160px): each space becomes a compact row with its
   number and `·`, or a `●` when it is blocked or done, and the tab rows are hidden.
+- **Agent details** are read every 5s and the times move on every minute. When
+  a line runs out of room (judged from the sidebar's width at about 6.2px per
+  detail character and 7.2px per name character, keeping 9 name characters),
+  the effort shortens to its words' capitals (`high` → `H`, `xhigh` → `XH`,
+  `max` stays `MAX`), then the model goes, then the name truncates. Context
+  and time never go.
+- **Sub-agents** stay folded until the chip is clicked; open chips survive
+  restarts (`localStorage` `agents.subsOpen`).
+- **Compact/Detailed**: the header switch, or the mod command
+  `nested-tabs.details` (bound in `keys.json` to `cmd-shift-i`), toggles it;
+  the choice survives restarts (`localStorage` `agents.detailed`).
+- **Agent rows** under a tab: a click switches to that space and tab and
+  focuses the pane.
+- **Timeline button:** opens the panel on the Timeline. Anything else that
+  turns the panel to it (switching agents does) is undone within 2s, back to
+  what was showing.
 
 ## Built from
 
@@ -116,7 +150,8 @@ Agent status on a tab row, and on a folded space's row:
   shows `tabs-bar` instead of `tabs`. Node tree: `root` row → `sidebar`
   column (`brand`, `sidebar-lists` column of `spaces` + `agents`,
   `sidebar-footer`) and `work` column (`tabs`, `work-body` row of `main`
-  + `panel` stack of `files`/`changes`, `status`). Neither mod takes `props`.
+  + `panel` stack of `files`/`changes`, `status`). `tabs-bar` takes one
+  optional prop, `chips`; `nested-tabs` takes none.
 - **`mods/nested-tabs/`**: a clone of the shipped `spaces` mod (0.1.13) with
   `tabRows()`, `chevron()`, `status()` and the folding added. It reads
   `spaces()` (each space's `tabs`, with `id`, `name`, `index`, `active`,
@@ -126,21 +161,38 @@ Agent status on a tab row, and on a folded space's row:
   `space.new`, `tab.select`, `tab.move`, `tab.rename`, `tab.close`. Overlays:
   the shipped `menu` mod with `tab: "space"` or `tab: "tab"`, and the
   shipped `new-menu` (popup, 250 × 512) from a space's `+`. Hover is
-  `on_hover` on each row, remembering the one row under the pointer.
+  `on_hover` on each row, remembering the one row under the pointer. Agent
+  rows add `agents()` (by pane: title, status, app), `readTextFile` and
+  `appHome()` (to load its scripts), `nextCommand()` (`details`) and the
+  command `pane.focus`. Its scripts, unchanged from Over9k (MIT,
+  `LICENSE-over9k`): `claude-info.py` (run with `python3 -c`, prints a JSON
+  object keyed by Herdr terminal: `model`, `effort`, `context`, `lastAt`,
+  `transcript`, …) and `subagents.sh` (run with `sh -c` on a transcript, one
+  tab-separated line per sub-agent: id, last write, description, type, model,
+  start, tokens, effort, window, done).
 - **`mods/tabs-bar/`**: a clone of the shipped `tabs` mod (0.1.13) with
-  the chips and the `+` removed, keeping the panel buttons, the per-space panel
-  memory (`localStorage` `panels`) and the window buttons. Commands:
-  `layout.show`/`layout.hide`/`layout.select` for the panel, `tab.prev`/`tab.next`,
-  `window.minimize`/`maximize`/`close`. Art:
-  `win-min.svg`, `win-max.svg`, `win-restore.svg`, `win-close.svg`.
+  the chips (back with `props().chips`) and the `+` removed, keeping the panel
+  buttons, the per-space panel memory (`localStorage` `panels`) and the window
+  buttons. The Timeline button reads `shared("sidebar.options").timeline`
+  (Over9k's switch for it). Commands: `layout.show`/`layout.hide`/`layout.select`
+  for the panel, `tab.prev`/`tab.next`, and for chips `tab.select`, `tab.move`,
+  `tab.rename`, `tab.close` and the shipped `menu`, `window.minimize`/`maximize`/`close`. Art:
+  `win-min.svg`, `win-max.svg`, `win-restore.svg`, `win-close.svg`, and
+  `mods/over9k-prompts/timeline.svg` from Over9k when the Timeline is there.
+- **`keys.json`**: `global` `cmd-shift-i` → `nested-tabs.details`.
 - **Shipped art it borrows:** `mods/workspace-chrome/` `chevron-down`,
   `chevron-right`, `spinner`, `branch`, `plus`, `server`, `monitor`;
   `mods/pane/close.svg`; `mods/files/file.svg`; `mods/changes/changes.svg`.
 - **Programs:** `git status --porcelain=v2 --branch` and `git rev-parse` in
   each space's folder, through `exec` (on the space's machine), plus
   `hc machine ls/rm/add` to list and reconnect machines. Both come from the
-  shipped `spaces` mod. Nothing reaches the network beyond Herdr's own
-  machine connections.
+  shipped `spaces` mod. For agent details, every 5s: `python3` running
+  `claude-info.py` (reads `~/.claude/sessions/*.json`, the end of each
+  conversation under `~/.claude/projects/`, and `ps -wwE` for each Claude
+  process's `HC_TERMINAL_ID`; writes `~/.cache/over9k/agents/<terminal>.json`)
+  and `sh` running `subagents.sh` per agent (reads the transcript's
+  `subagents/` folder; caches in `~/.cache/over9k/`). Nothing reaches the
+  network beyond Herdr's own machine connections.
 
 ## Watch out
 
@@ -166,6 +218,16 @@ Agent status on a tab row, and on a folded space's row:
 - **Watches files outside its folder:** `watchFolder` on each local repo's
   git directory, and `git` runs in every space's folder.
 - **Narrow rail hides tabs.** Under 160px only the compact space rows show.
+- **No palette entry.** Herdr's command palette lists only its own commands,
+  so the Compact/Detailed toggle is a header switch and a key.
+- **Widths are estimates.** gpui-kit can't measure text, so the shortening
+  order is decided by characters; a very wide name can still truncate early.
+- **Details are Claude Code's, local only.** Other agents (Codex, Pi) and
+  agents on other machines show name and status only. `~/.cache/over9k/` is
+  shared with Over9k if it's installed: same scripts, same files.
+- **Timeline is Over9k's.** The button needs the `over9k-prompts` mod
+  installed and a `prompts` block in the layout's panel; without them the bar
+  shows Files and Changes only.
 
 ## Done when
 
@@ -188,3 +250,15 @@ Agent status on a tab row, and on a folded space's row:
 - A worktree space appears under its repo's space, with its own tabs under it.
 - Opening Files in one space and switching to another that had it closed
   closes the panel, and switching back opens Files again.
+- A Claude Code agent's row shows `model · effort · %` and, once it stops,
+  the time since its last reply; narrowing the sidebar first shortens the
+  effort to its capitals, then drops the model, while `%` and time stay.
+- A tab with two terminals lists both under it; clicking one focuses it.
+- An agent running sub-agents shows a count chip; clicking it lists them and
+  clicking again hides them.
+- The header switch and `herdr-app do nested-tabs.details` both flip between
+  one-line and two-line agent rows, and the choice survives a restart.
+- With `"props": {"chips": true}` on the `tabs` block the top bar shows tab
+  chips; without it, none.
+- In a layout whose panel has a `prompts` block with `over9k-prompts`, the
+  top bar shows Timeline, and switching agents doesn't open it by itself.
