@@ -64,7 +64,8 @@ sidebar, under the space they belong to.
   working, then done.
 - A tab row shows the program icon, its name, and × on the selected tab.
 - Click selects (in any space), double-click renames, right-click opens the tab
-  menu, drag reorders within the space.
+  menu, middle click closes, drag reorders within the space. A tab with no
+  terminal (a file opened from Files or Changes) shows a file icon.
 - Worktree spaces stay nested under their repo's space, as in Herdr, and list
   their own tabs under them.
 - Claude Code agents show their details after the name: model, effort, context

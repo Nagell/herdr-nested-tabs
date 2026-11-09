@@ -50,7 +50,9 @@ Everything outside the sidebar list and the top bar is the same as Herdr's
      a worktree), empty unless the tab has several terminals, then 5px on, the
      program icon (14px; tinted icons in `muted`) and the tab name. A folded
      tab with two agents or more shows two 12px icons overlapping (the second
-     6px right and down) and "N agents" in 11px `dim` after the name.
+     6px right and down) and "N agents" in 11px `dim` after the name. A tab
+     with no terminal and no program icon (a file opened from Files or
+     Changes) shows the shipped `mods/files/file.svg` in `muted`.
      A tab nobody named (`tb<n>`) shows its
      program's name instead, or "Terminal", and a zoomed tab gets " Z" after
      its name. The selected tab in the active space is drawn in
@@ -127,7 +129,7 @@ show their own.
   highlights its own row.
 - **Tab rows:** a click selects the tab, and switches to its space first if
   needed. A double-click renames it, a right-click opens Herdr's tab menu, and
-  × closes it. Dragging moves the tab within its space only: the dragged row
+  × or a middle click closes it. Dragging moves the tab within its space only: the dragged row
   fades to 50% and a 2px `accent` line marks where it will land (above it
   when moving up, below it when moving down).
 - **Space rows:** a click selects the space, a right-click opens the space

@@ -41,6 +41,8 @@ const GUTTER = 10;
 const GUTTER_GAP = 6;
 const LEFT = GUTTER_PAD + GUTTER + GUTTER_GAP;
 const IDLE_SHOWN = 8; // idle sub-agents listed under an open chip
+// A tab with no terminal and no program icon (a file opened from Files or Changes).
+const FILE = { icon: "mods/files/file.svg", tint: true };
 const where = (s, ps) => JSON.stringify([s.machine ?? null, place(s, ps)]);
 const base = (path) => path.replace(/\/+$/, "").split("/").pop();
 // Changes made outside Herdr (an editor's save, a commit in another app): looked
@@ -771,8 +773,10 @@ export default class Spaces extends View {
           cx.stop_propagation();
           openOverlay({ mod: "menu", kind: "popup", width: 200, props: { tab: "tab", target: { id: c.id, space: w.id } } });
         })
+        // A middle click closes it, like its ×.
+        .on_mouse_down("middle", (_e, cx) => { cx.stop_propagation(); run("tab.close", { id: c.id }); })
         .child(this.start(status, indent, t))
-        .child(this.lead(first, many ? inside.map((x) => x.program) : [program], t))
+        .child(this.lead(first, many ? inside.map((x) => x.program) : [program?.icon || list.length ? program : FILE], t))
         .child(many
           ? h_flex().flex_1().min_w(0).gap(6).items_center()
             .child(div().min_w(0).truncate().child(label))
