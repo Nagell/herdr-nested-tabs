@@ -24,10 +24,10 @@ Everything outside the sidebar list and the top bar is the same as Herdr's
    - Header, 31px: "Spaces" in 11.5px `dim`, then on the right a 22px
      **Compact**/**Detailed** switch (`dim`; `foreground` on `selected` while
      Detailed) and a 26px `+` button that makes a new space.
-   - **Status column**: every row starts with a 12px column at its left edge
-     (no left padding before it) holding its status mark, so all marks line
-     up whatever the row's depth. Everything after it sits 4px further right
-     than in Herdr's `spaces` mod.
+   - **Status column**: every row starts with 4px of padding, then a 10px
+     column holding its status mark (at 85% opacity), then a 6px gap, so all
+     marks line up whatever the row's depth. Everything after it sits 12px
+     further right than in Herdr's `spaces` mod.
    - **Space row**, 30px (28px for a worktree), 8px radius. After the status
      column: an 18px fold arrow (a Lucide chevron drawn at 16px, `muted`; `dim` when the
      space has one tab or none), then an 18px
@@ -66,11 +66,14 @@ Everything outside the sidebar list and the top bar is the same as Herdr's
      the tab's, so its icon sits under the tab's: an agent with its title (the conversation's name) and details, or a plain
      terminal with its program's name. Detailed puts the details on a second
      line (36px rows).
-   - **Sub-agent chip** after an agent with sub-agents running: 16px, 4px
-     radius, `raised`, the count in 10.5px `foreground` and an 8px chevron.
-     Open, each running sub-agent gets a 22px row under the agent, starting
-     under the agent's icon: a dim 10px
-     spinner, its description in 12px `muted`, its type in 11px `dim`.
+   - **Sub-agent chip** after an agent with sub-agents running or idle: 16px,
+     4px radius, `raised`, the running count in 10.5px `foreground`, then
+     `· n` idle in `dim` when there are idle ones, and an 8px chevron. Open,
+     each sub-agent gets a 22px row under the agent, starting under the
+     agent's icon: running ones a dim 10px spinner and their description in
+     12px `muted`; idle ones a 7px hollow circle (1px `dim` border) and their
+     description in `dim`. Their type follows in 11px `dim`. Only the newest 8
+     idle ones are listed, then "… n more idle".
    - With more than one machine connected, the rows are grouped under a 26px
      header per machine ("This computer", then each remote one), each with a
      `+`, a green or dim connection dot and its own fold arrow.
@@ -101,9 +104,9 @@ show their own.
 
 | Status  | Mark                                                   |
 | ------- | ------------------------------------------------------ |
-| working | 12px spinner in `working`, one turn every 900ms        |
-| blocked | 6px dot in `blocked`                                   |
-| done    | 6px dot in `done`                                      |
+| working | 10px spinner in `working`, one turn every 900ms        |
+| blocked | 5px dot in `blocked`                                   |
+| done    | 5px dot in `done`                                      |
 | idle    | nothing                                                |
 
 - **Folding:** the arrow folds or unfolds a space's tabs, and so does a
@@ -178,13 +181,14 @@ show their own.
   rows add `agents()` (by pane: title, status, app), `readTextFile` and
   `appHome()` (to load its scripts), `nextCommand()` (`details`) and the
   command `pane.focus`. Its scripts, from Over9k (MIT, `LICENSE-over9k`) with
-  two fixes (an output style's requests count for the effort; a teammate is
-  done once it messages the parent or its turn has been over for 2 minutes):
+  two changes (an output style's requests count for the effort; a sub-agent
+  that messaged the parent or whose turn has been over for 2 minutes is done,
+  or idle if it's a teammate, `"taskKind":"in_process_teammate"`):
   `claude-info.py` (run with `python3 -c`, prints a JSON
   object keyed by Herdr terminal: `model`, `effort`, `context`, `lastAt`,
   `transcript`, …) and `subagents.sh` (run with `sh -c` on a transcript, one
   tab-separated line per sub-agent: id, last write, description, type, model,
-  start, tokens, effort, window, done).
+  start, tokens, effort, window, done, idle).
 - **`mods/tabs-bar/`**: a clone of the shipped `tabs` mod (0.1.13) with
   the chips (back with `props().chips`) and the `+` removed, keeping the panel
   buttons, the per-space panel memory (`localStorage` `panels`) and the window
@@ -273,8 +277,9 @@ show their own.
   details if one of them is an agent, or overlapping icons and "2 agents" if
   both are; its arrow lists both under it, their icons under the tab's, and
   clicking one focuses it.
-- An agent running sub-agents shows a count chip; clicking it lists them and
-  clicking again hides them.
+- An agent with sub-agents shows a count chip, running then idle; clicking it
+  lists them (idle ones dimmed with a hollow circle) and clicking again hides
+  them.
 - The header switch and `herdr-app do nested-tabs.details` both flip between
   one-line and two-line agent rows, and the choice survives a restart.
 - With `"props": {"chips": true}` on the `tabs` block the top bar shows tab

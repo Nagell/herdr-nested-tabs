@@ -75,8 +75,10 @@ sidebar, under the space they belong to.
   its agent's details if it has one agent, or overlapping icons and "2 agents"
   if it has more. Its arrow lists the terminals under it, their icons under
   the tab's.
-- Running sub-agents are counted in a chip after the agent; a click on it lists
-  them, and it stays closed until you open it.
+- Sub-agents are counted in a chip after the agent, running then idle
+  (`3 · 11`; idle: a workflow teammate waiting for messages). A click lists
+  them, running ones with a spinner and idle ones dimmed with a hollow circle;
+  it stays closed until you open it.
 - **Compact** (details on the name's line) or **Detailed** (details under the
   name): the switch in the Spaces header, or a key bound to `nested-tabs.details`
   (`keys.json` suggests `cmd-shift-i`).

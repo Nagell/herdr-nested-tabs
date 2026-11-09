@@ -34,7 +34,13 @@ const CHEVRON = 18;
 const LEAD_GAP = 5;
 const TREE_INDENT = CHEVRON + LEAD_GAP;
 const ROW_PAD = 8;
-const GUTTER = 12; // the status column at each row's left edge
+// The status column at each row's start: a margin, the column, a gap; LEFT is
+// where a row's content starts (ROW_PAD before the column existed).
+const GUTTER_PAD = 4;
+const GUTTER = 10;
+const GUTTER_GAP = 6;
+const LEFT = GUTTER_PAD + GUTTER + GUTTER_GAP;
+const IDLE_SHOWN = 8; // idle sub-agents listed under an open chip
 const where = (s, ps) => JSON.stringify([s.machine ?? null, place(s, ps)]);
 const base = (path) => path.replace(/\/+$/, "").split("/").pop();
 // Changes made outside Herdr (an editor's save, a commit in another app): looked
@@ -446,11 +452,12 @@ export default class Spaces extends View {
             info[a.address] = i;
             if (!this.subScript || !i.transcript) continue;
             const s = await exec("sh", ["-c", this.subScript, "sh", i.transcript]).catch(() => null);
-            const running = (s?.stdout ?? "").split("\n").filter(Boolean).map((l) => {
-              const [id, at, desc, type, model, , , effort, , done] = l.split("\t");
-              return { id, at: +at, desc, type, model, effort: effort || null, done: done === "1" };
-            }).filter((x) => !x.done).sort((x, y) => y.at - x.at);
-            if (running.length) subs[a.address] = running;
+            // Running ones first, then idle teammates; newest first in each.
+            const alive = (s?.stdout ?? "").split("\n").filter(Boolean).map((l) => {
+              const [id, at, desc, type, model, , , effort, , done, idle] = l.split("\t");
+              return { id, at: +at, desc, type, model, effort: effort || null, done: done === "1", idle: idle === "1" };
+            }).filter((x) => !x.done).sort((x, y) => x.idle - y.idle || y.at - x.at);
+            if (alive.length) subs[a.address] = alive;
           }
         }
       } finally {
@@ -497,9 +504,20 @@ export default class Spaces extends View {
     return h_flex().flex_none().gap(4).items_center().text_size(11).text_color(t.dim).children(dotted);
   }
 
-  // How many sub-agents an agent has running; a click shows or hides them.
+  // The px its chip takes at a row's end, gap included (judged by characters).
+  chipWidth(addr) {
+    const all = this.subs[addr] ?? [];
+    const idle = all.filter((s) => s.idle).length;
+    const text = String(all.length - idle) + (idle ? ` · ${idle}` : "");
+    return 30 + text.length * DETAIL_CH;
+  }
+
+  // How many sub-agents an agent has running, then idle ("3 · 11"); a click
+  // shows or hides them.
   subsChip(addr, t) {
     const open = this.subsOpen.has(addr);
+    const all = this.subs[addr];
+    const idle = all.filter((s) => s.idle).length;
     return h_flex().id(`subs-${addr}`).h(16).px(4).gap(3).flex_none().items_center().rounded(4)
       .bg(t.raised).text_size(10.5).text_color(t.foreground).hover((s) => s.bg(t.hover))
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
@@ -510,7 +528,8 @@ export default class Spaces extends View {
         localStorage.setItem("agents.subsOpen", JSON.stringify([...this.subsOpen]));
         cx.notify();
       })
-      .child(String(this.subs[addr].length))
+      .child(String(all.length - idle))
+      .when(idle > 0, (el) => el.child(div().text_color(t.dim).child(`· ${idle}`)))
       .child(svg(`mods/workspace-chrome/chevron-${open ? "down" : "right"}.svg`).size(8));
   }
 
@@ -533,16 +552,16 @@ export default class Spaces extends View {
   // indent, icon, gaps and what sits at its end.
   room(indent, ends) {
     const sidebar = find(layout(), "sidebar")?.size?.px ?? 268;
-    return sidebar - 16 - (GUTTER - ROW_PAD) - indent - ROW_PAD - CHEVRON - 7 * 3 - ends;
+    return sidebar - 16 - (LEFT - ROW_PAD) - indent - ROW_PAD - CHEVRON - 7 * 3 - ends;
   }
 
   // Every row starts with the status gutter, so all statuses line up whatever
   // the depth; then `indent` (as measured from a row's old left padding).
   start(status, indent, t) {
     const mark = this.status(status, t);
-    return h_flex().flex_none().items_center()
-      .child(h_flex().w(GUTTER).flex_none().justify_center().when(Boolean(mark), (el) => el.child(mark)))
-      .child(div().w(indent - ROW_PAD).flex_none());
+    return h_flex().flex_none().items_center().pl(GUTTER_PAD)
+      .child(h_flex().w(GUTTER).flex_none().justify_center().when(Boolean(mark), (el) => el.child(div().opacity(0.85).child(mark))))
+      .child(div().w(GUTTER_GAP + indent - ROW_PAD).flex_none());
   }
 
   // The fold arrow's column, then the program icon: a child row has the same
@@ -586,15 +605,25 @@ export default class Spaces extends View {
     localStorage.setItem("tabs.opened", JSON.stringify([...this.tabsOpened].filter((x) => ids.has(x))));
   }
 
-  // An agent's running sub-agents, under it while its chip is open.
+  // An agent's sub-agents, under it while its chip is open: running ones with a
+  // spinner, idle teammates dimmed with a hollow circle (the newest few only).
   subRows(addr, indent, t) {
     if (!this.subsOpen.has(addr)) return [];
-    return (this.subs[addr] ?? []).map((s) => h_flex().id(`sub-${addr}-${s.id}`).h(22).flex_none().pl(indent + GUTTER - ROW_PAD).pr(ROW_PAD).gap(7).items_center()
-      .text_size(12).text_color(t.muted)
+    const all = this.subs[addr] ?? [];
+    const running = all.filter((s) => !s.idle), idle = all.filter((s) => s.idle);
+    const row = (id) => h_flex().id(id).h(22).flex_none().pl(indent + LEFT - ROW_PAD).pr(ROW_PAD).gap(7).items_center().text_size(12);
+    const rows = [...running, ...idle.slice(0, IDLE_SHOWN)].map((s) => row(`sub-${addr}-${s.id}`)
+      .text_color(s.idle ? t.dim : t.muted)
       .child(h_flex().size(CHEVRON).flex_none().items_center().justify_center()
-        .child(svg("mods/workspace-chrome/spinner.svg").size(10).text_color(t.dim).spin(1800)))
+        .when(!s.idle, (el) => el.child(svg("mods/workspace-chrome/spinner.svg").size(10).text_color(t.dim).spin(1800)))
+        .when(s.idle, (el) => el.child(div().size(7).rounded(4).border(1).border_color(t.dim))))
       .child(div().flex_1().min_w(0).truncate().child(s.desc || s.type || "sub-agent"))
       .when(Boolean(s.type), (el) => el.child(div().flex_none().text_size(11).text_color(t.dim).child(s.type))));
+    if (idle.length > IDLE_SHOWN) {
+      rows.push(row(`sub-${addr}-more`).text_color(t.dim).child(div().w(CHEVRON).flex_none())
+        .child(div().child(`… ${idle.length - IDLE_SHOWN} more idle`)));
+    }
+    return rows;
   }
 
   // An opened tab with several terminals lists each under it: an agent with its
@@ -606,7 +635,7 @@ export default class Spaces extends View {
       const name = a ? agentTitle(a) || a.program?.name || "Agent" : p.program?.name ?? (p.title || "Terminal");
       const prog = (a ?? p).program;
       const chip = a && this.subs[a.address]?.length ? this.subsChip(a.address, t) : null;
-      const room = this.room(indent + TREE_INDENT, chip ? 36 : 0);
+      const room = this.room(indent + TREE_INDENT, chip ? this.chipWidth(a.address) : 0);
       const row = h_flex().id(`pane-${p.pane}`).h(this.detailed && a && this.info[a.address] ? 36 : 26).flex_none().pr(ROW_PAD).gap(7).items_center().rounded(7)
         .text_size(12.5).text_color(on ? t.foreground : t.muted)
         .when(on, (el) => el.bg(t.hover))
@@ -669,8 +698,8 @@ export default class Spaces extends View {
 
   // Working: spinner. Blocked or done: a dot in its color. Idle: nothing.
   status(status, t) {
-    if (status === "working") return svg("mods/workspace-chrome/spinner.svg").size(12).flex_none().text_color(t.working).spin(900);
-    if (status === "blocked" || status === "done") return div().size(6).rounded(3).flex_none().bg(t[status]);
+    if (status === "working") return svg("mods/workspace-chrome/spinner.svg").size(10).flex_none().text_color(t.working).spin(900);
+    if (status === "blocked" || status === "done") return div().size(5).rounded(3).flex_none().bg(t[status]);
     return null;
   }
 
@@ -700,7 +729,7 @@ export default class Spaces extends View {
       // An opened tab leaves its status to its terminals' rows.
       const status = opened ? null : this.tabStatus(c, ps, byPane);
       const closing = on || this.hovered === `tab-${c.id}`;
-      const room = this.room(indent + TREE_INDENT, (chip ? 36 : 0) + (closing ? 19 : 0));
+      const room = this.room(indent + TREE_INDENT, (chip ? this.chipWidth(a.address) : 0) + (closing ? 19 : 0));
       const tall = this.detailed && a && this.info[a.address];
       const label = c.zoomed ? `${name} Z` : name;
       const row = h_flex().relative().id(`tab-${c.id}`).h(tall ? 36 : 26).flex_none().pr(ROW_PAD).gap(7).items_center().rounded(7)
