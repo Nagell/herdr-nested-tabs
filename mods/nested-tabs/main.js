@@ -1,6 +1,6 @@
 // Workspace spaces: stable colored avatars, worktrees under their checkout,
 // grouped by machine when more than one is known. After a space's name, the repo
-// its first terminal is in now, only where unusual: branch, ahead/behind. Agent state lives in the agents list, not here. Click to
+// its first terminal is in now, only where unusual: branch, ahead/behind. Click to
 // switch, right-click for its menu, drag to reorder.
 // Each space lists its tabs under it, before its worktrees; the triangle folds them.
 // A Claude Code agent's model, effort, context and sub-agents come from its own
@@ -101,6 +101,7 @@ export default class Spaces extends View {
     this.tabOver = null;
     this.hovered = null; // row under the pointer ("space-<id>" / "tab-<id>"): shows its + or ×
     this.tabsFolded = new Set(JSON.parse(localStorage.getItem("tabs.folded") ?? "[]"));
+    this.tabsOpened = new Set(JSON.parse(localStorage.getItem("tabs.opened") ?? "[]")); // tabs showing their terminals
     this.machines = [];
     this.reconnecting = JSON.parse(localStorage.getItem("machines.reconnecting") ?? "{}");
     for (const state of Object.values(this.reconnecting)) state.busy = false;
@@ -534,6 +535,41 @@ export default class Spaces extends View {
     return sidebar - 16 - indent - ROW_PAD - CHEVRON - 7 * 3 - ends;
   }
 
+  // A row's start: its status (or a fold arrow), then its program's icon. A child
+  // row has the same two columns, so its icon sits under its parent's.
+  lead(first, prog, t) {
+    return h_flex().flex_none().gap(LEAD_GAP).items_center()
+      .child(first ?? div().size(CHEVRON).flex_none())
+      .child(h_flex().size(CHEVRON).flex_none().items_center().justify_center()
+        .when(Boolean(prog?.icon), (el) => el.child(prog.tint ? svg(prog.icon).size(14).text_color(t.muted) : image(prog.icon).size(14))));
+  }
+
+  statusBox(status, t) {
+    const mark = this.status(status, t);
+    return h_flex().size(CHEVRON).flex_none().items_center().justify_center().when(Boolean(mark), (el) => el.child(mark));
+  }
+
+  // What a folded arrow hides speaks through its color.
+  statusColor(status, t) {
+    return status === "working" || status === "blocked" || status === "done" ? t[status] : null;
+  }
+
+  arrow(id, open, color, toggle, t) {
+    return div().id(id).size(CHEVRON).flex_none().flex().items_center().justify_center().rounded(3)
+      .text_color(color).hover((s) => s.text_color(t.foreground))
+      .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+      .on_click((_e, cx) => { cx.stop_propagation(); toggle(); cx.notify(); })
+      // Lucide draws the arrow in the middle half of its box: 16 shows about 8 px.
+      .child(svg(`mods/workspace-chrome/chevron-${open ? "down" : "right"}.svg`).size(16));
+  }
+
+  toggleTab(id) {
+    if (this.tabsOpened.has(id)) this.tabsOpened.delete(id);
+    else this.tabsOpened.add(id);
+    const ids = new Set(spaces().flatMap((s) => (s.tabs ?? []).map((c) => c.id)));
+    localStorage.setItem("tabs.opened", JSON.stringify([...this.tabsOpened].filter((x) => ids.has(x))));
+  }
+
   // An agent's running sub-agents, under it while its chip is open.
   subRows(addr, indent, t) {
     if (!this.subsOpen.has(addr)) return [];
@@ -545,17 +581,16 @@ export default class Spaces extends View {
       .when(Boolean(s.type), (el) => el.child(div().flex_none().text_size(11).text_color(t.dim).child(s.type))));
   }
 
-  // A tab with several terminals lists each under it: an agent with its details,
-  // or a plain terminal. A click focuses that pane.
+  // An opened tab with several terminals lists each under it: an agent with its
+  // details, or a plain terminal. A click focuses that pane.
   paneRows(w, c, list, indent, byPane, t) {
     return list.flatMap((p) => {
       const a = byPane.get(p.pane);
       const on = w.active && c.active && p.focused;
       const name = a ? agentTitle(a) || a.program?.name || "Agent" : p.program?.name ?? (p.title || "Terminal");
       const prog = (a ?? p).program;
-      const mark = a ? this.status(a.status, t) : null;
       const chip = a && this.subs[a.address]?.length ? this.subsChip(a.address, t) : null;
-      const room = this.room(indent, (mark ? 19 : 0) + (chip ? 36 : 0));
+      const room = this.room(indent + TREE_INDENT, chip ? 36 : 0);
       const row = h_flex().id(`pane-${p.pane}`).h(this.detailed && a && this.info[a.address] ? 36 : 26).flex_none().pl(indent).pr(ROW_PAD).gap(7).items_center().rounded(7)
         .text_size(12.5).text_color(on ? t.foreground : t.muted)
         .when(on, (el) => el.bg(t.hover))
@@ -567,10 +602,8 @@ export default class Spaces extends View {
           run("pane.focus", { pane: p.pane });
           cx.notify();
         })
-        .child(h_flex().size(CHEVRON).flex_none().items_center().justify_center()
-          .when(Boolean(prog?.icon), (el) => el.child(prog.tint ? svg(prog.icon).size(14).text_color(t.muted) : image(prog.icon).size(14))))
+        .child(this.lead(a ? this.statusBox(a.status, t) : null, prog, t))
         .child(this.nameAndDetails(name, a, room, t))
-        .when(Boolean(mark), (el) => el.child(mark))
         .when(Boolean(chip), (el) => el.child(chip));
       return [row, ...(a ? this.subRows(a.address, indent + TREE_INDENT, t) : [])];
     });
@@ -591,12 +624,8 @@ export default class Spaces extends View {
     const open = this.tabsOpen(w);
     // One tab or none: little to fold, so the arrow steps back.
     const few = (w.tabs?.length ?? 0) <= 1;
-    return div().id(`fold-${w.id}`).size(CHEVRON).flex_none().flex().items_center().justify_center().rounded(3)
-      .text_color(few ? t.dim : t.muted).hover((s) => s.text_color(t.foreground))
-      .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-      .on_click((_e, cx) => { cx.stop_propagation(); this.toggleTabs(w); cx.notify(); })
-      // Lucide draws the arrow in the middle half of its box: 16 shows about 8 px.
-      .child(svg(`mods/workspace-chrome/chevron-${open ? "down" : "right"}.svg`).size(16));
+    const color = (!open && this.statusColor(w.status, t)) || (few ? t.dim : t.muted);
+    return this.arrow(`fold-${w.id}`, open, color, () => this.toggleTabs(w), t);
   }
 
   // New tab, on the active or hovered space's row: drawn like a tab row's ×, at
@@ -629,9 +658,11 @@ export default class Spaces extends View {
     return null;
   }
 
-  // A space's tabs, as the top tab bar drew them: program icon, name, status, close on the shown one.
-  // A tab with one terminal carries its agent's details on its own row; one with
-  // several lists them under it (paneRows).
+  // A space's tabs: status, program icon, name, close on the shown one. A tab
+  // with one terminal carries its agent's details on its own row. One with
+  // several folds: folded (the default), it keeps its own name and carries the
+  // details of its agent if it has just one, without sub-agents; opened, it lists
+  // its terminals under it (paneRows).
   tabRows({ w, tree }, t, ps, byPane) {
     if (!this.tabsOpen(w)) return [];
     const indent = ROW_PAD + TREE_INDENT + (tree ? TREE_INDENT : 0);
@@ -641,13 +672,18 @@ export default class Spaces extends View {
       const program = ps.find((p) => p.tab === c.id && p.program?.agent)?.program ?? ps.find((p) => p.tab === c.id)?.program;
       const name = /^tb\d+$/.test(c.name) ? program?.name ?? "Terminal" : c.name;
       const on = w.active && c.active;
-      const mark = this.status(c.status, t);
       const target = dragged && this.tabOver === c.id && dragged.id !== c.id;
       const list = ps.filter((p) => p.tab === c.id && p.terminal);
-      const a = list.length === 1 ? byPane.get(list[0].pane) : null;
-      const chip = a && this.subs[a.address]?.length ? this.subsChip(a.address, t) : null;
+      const several = list.length > 1;
+      const opened = several && this.tabsOpened.has(c.id);
+      const inside = list.map((p) => byPane.get(p.pane)).filter(Boolean);
+      const a = (several ? (!opened && inside.length === 1 ? inside[0] : null) : list.length === 1 ? byPane.get(list[0].pane) : null) ?? null;
+      const chip = !several && a && this.subs[a.address]?.length ? this.subsChip(a.address, t) : null;
+      const first = several
+        ? this.arrow(`tab-fold-${c.id}`, opened, (!opened && this.statusColor(c.status, t)) || t.muted, () => this.toggleTab(c.id), t)
+        : this.statusBox(c.status, t);
       const closing = on || this.hovered === `tab-${c.id}`;
-      const room = this.room(indent, (mark ? 19 : 0) + (chip ? 36 : 0) + (closing ? 19 : 0));
+      const room = this.room(indent + TREE_INDENT, (chip ? 36 : 0) + (closing ? 19 : 0));
       const tall = this.detailed && a && this.info[a.address];
       const row = h_flex().relative().id(`tab-${c.id}`).h(tall ? 36 : 26).flex_none().pl(indent).pr(ROW_PAD).gap(7).items_center().rounded(7)
         .text_size(12.5).text_color(on ? t.foreground : t.muted)
@@ -688,17 +724,15 @@ export default class Spaces extends View {
           cx.stop_propagation();
           openOverlay({ mod: "menu", kind: "popup", width: 200, props: { tab: "tab", target: { id: c.id, space: w.id } } });
         })
-        .child(h_flex().size(CHEVRON).flex_none().items_center().justify_center()
-          .when(Boolean(program?.icon), (el) => el.child(program.tint ? svg(program.icon).size(14).text_color(t.muted) : image(program.icon).size(14))))
+        .child(this.lead(first, program, t))
         .child(this.nameAndDetails(c.zoomed ? `${name} Z` : name, a, room, t))
-        .when(Boolean(mark), (el) => el.child(mark))
         .when(Boolean(chip), (el) => el.child(chip))
         .when(closing, (el) => el.child(div().id(`close-${c.id}`).flex_none().text_color(t.dim).hover((s) => s.text_color(t.foreground))
           .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
           .on_click((_e, cx) => { cx.stop_propagation(); run("tab.close", { id: c.id }); })
           .child(svg("mods/pane/close.svg").size(12))));
-      if (list.length > 1) return [row, ...this.paneRows(w, c, list, indent + TREE_INDENT, byPane, t)];
-      return [row, ...(a ? this.subRows(a.address, indent + TREE_INDENT, t) : [])];
+      if (opened) return [row, ...this.paneRows(w, c, list, indent, byPane, t)];
+      return [row, ...(chip ? this.subRows(a.address, indent + TREE_INDENT, t) : [])];
     });
   }
 
@@ -706,7 +740,6 @@ export default class Spaces extends View {
     const open = this.tabsOpen(w);
     // With its tabs listed, the shown tab carries the highlight instead of the space.
     const on = w.active && !(open && w.tabs?.length);
-    const mark = open ? null : this.status(w.status, t);
     const fromIndex = this.pressed === null ? -1 : spaces().findIndex(s => s.id === this.pressed);
     const colors = shared("space.colors") ?? {};
     const color = colors[w.id] ?? "ansi6";
@@ -764,7 +797,6 @@ export default class Spaces extends View {
             .when(!tree, el => el.child(h_flex().size(18).flex_none().rounded(5).bg(fill).items_center().justify_center().text_size(10.5).font_bold().text_color("#ffffff").child([...w.name][0]?.toUpperCase() ?? "?"))))
           .child(div().flex_shrink(0).max_w(150).truncate().text_color(t.foreground).child(w.name))
           .child(g ? this.gitTail(g, tree, w.name, t) : div().flex_1())
-          .when(Boolean(mark), el => el.child(mark))
           .when(w.active || this.hovered === `space-${w.id}`, el => el.child(this.addTab(w, t))),
       );
   }

@@ -34,17 +34,18 @@ Everything outside the sidebar list and the top bar is the same as Herdr's
      most 150px wide, truncated), then on the right only what is unusual about
      its git state, in 11.5px `dim`: the repo name when it differs from the
      space name, and the branch unless it is `main`/`master` or matches the
-     name. After that, `↑n` in `ansi2` and `↓n` in `ansi1`, the status mark
-     when folded, and last, on the active space's row and on a hovered one,
+     name. After that, `↑n` in `ansi2` and `↓n` in `ansi1`, and last, on the
+     active space's row and on a hovered one,
      a `+` drawn like a tab row's ×: a 12px plus icon in `dim`, `foreground` on hover, at the
      same right edge.
    - **Worktree rows** sit under their repo's space, indented by 23px, with
      a branch icon in place of the avatar.
    - **Tab rows**, 26px each, 7px radius, 12.5px text, sit under their space
-     and above its worktrees. The icon column lines up under the space's
-     avatar (23px indent, plus 23px more under a worktree). Each row shows the
-     program icon (14px; tinted icons in `muted`), the tab name, and the
-     status mark at the right end. A tab nobody named (`tb<n>`) shows its
+     and above its worktrees. They start with an 18px status column under the
+     space's avatar (23px indent, plus 23px more under a worktree), then 5px
+     on, the program icon (14px; tinted icons in `muted`) and the tab name. A
+     tab with several terminals has a fold arrow in the status column instead.
+     A tab nobody named (`tb<n>`) shows its
      program's name instead, or "Terminal", and a zoomed tab gets " Z" after
      its name. The selected tab in the active space is drawn in
      `foreground` on `selected` with a 12px × close. Other tabs are `muted`
@@ -53,13 +54,17 @@ Everything outside the sidebar list and the top bar is the same as Herdr's
      effort, context used (`ansi2` under 50%, `ansi3` from 50%, `ansi1` from
      80%) and the time since its last reply (`4m`, `3h`, `2d`; not while it
      works). Only for Claude Code agents on this computer. A tab with one
-     terminal shows them on its own row; a tab with several lists each
-     terminal under it as a 26px row (23px further in): an agent with its
-     title (the conversation's name) and details, or a plain terminal with its
-     program's name. Detailed puts the details on a second line (36px rows).
+     terminal shows them on its own row, and so does a folded tab with several
+     terminals and one agent among them (no sub-agent chip there). An opened
+     tab lists each terminal under it as a 26px row with the same columns as
+     the tab's, so its icon sits under the tab's: the agent's status, then an
+     agent with its title (the conversation's name) and details, or a plain
+     terminal with its program's name. Detailed puts the details on a second
+     line (36px rows).
    - **Sub-agent chip** after an agent with sub-agents running: 16px, 4px
      radius, `raised`, the count in 10.5px `foreground` and an 8px chevron.
-     Open, each running sub-agent gets a 22px row under the agent: a dim 10px
+     Open, each running sub-agent gets a 22px row under the agent, starting
+     under the agent's icon: a dim 10px
      spinner, its description in 12px `muted`, its type in 11px `dim`.
    - With more than one machine connected, the rows are grouped under a 26px
      header per machine ("This computer", then each remote one), each with a
@@ -84,7 +89,7 @@ Everything outside the sidebar list and the top bar is the same as Herdr's
 
 ## How it behaves
 
-Agent status on a tab row, and on a folded space's row:
+Agent status in the status column of a tab or terminal row:
 
 | Status  | Mark                                                   |
 | ------- | ------------------------------------------------------ |
@@ -95,9 +100,12 @@ Agent status on a tab row, and on a folded space's row:
 
 - **Folding:** the arrow folds or unfolds a space's tabs, and so does a
   double-click anywhere else on the space's row. Folds survive restarts (they
-  are kept in the mod's `localStorage` as `tabs.folded`). A folded space shows
-  the status mark of the tabs it hides on its own row. An open space shows
-  none, since its tabs show their own.
+  are kept in the mod's `localStorage` as `tabs.folded`). A folded space's
+  arrow takes the color of the status it hides (`working`, `blocked`, `done`);
+  an open space's arrow stays `muted`, since its tabs show their own.
+- **Tab folding:** a tab with several terminals starts folded; its arrow lists
+  them, tinted like a space's while folded. Opened tabs survive restarts
+  (`localStorage` `tabs.opened`).
 - **New tab:** the `+` opens Herdr's new-tab menu (terminal, agents, new
   space, worktrees). It shows on the active space's row and on whichever
   space row is hovered; on another space it selects that space first, since
@@ -164,8 +172,10 @@ Agent status on a tab row, and on a folded space's row:
   `on_hover` on each row, remembering the one row under the pointer. Agent
   rows add `agents()` (by pane: title, status, app), `readTextFile` and
   `appHome()` (to load its scripts), `nextCommand()` (`details`) and the
-  command `pane.focus`. Its scripts, unchanged from Over9k (MIT,
-  `LICENSE-over9k`): `claude-info.py` (run with `python3 -c`, prints a JSON
+  command `pane.focus`. Its scripts, from Over9k (MIT, `LICENSE-over9k`) with
+  two fixes (an output style's requests count for the effort; a teammate is
+  done once it messages the parent or its turn has been over for 2 minutes):
+  `claude-info.py` (run with `python3 -c`, prints a JSON
   object keyed by Herdr terminal: `model`, `effort`, `context`, `lastAt`,
   `transcript`, …) and `subagents.sh` (run with `sh -c` on a transcript, one
   tab-separated line per sub-agent: id, last write, description, type, model,
@@ -224,7 +234,8 @@ Agent status on a tab row, and on a folded space's row:
   order is decided by characters; a very wide name can still truncate early.
 - **Details are Claude Code's, local only.** Other agents (Codex, Pi) and
   agents on other machines show name and status only. `~/.cache/over9k/` is
-  shared with Over9k if it's installed: same scripts, same files.
+  shared with Over9k if it's installed; the sub-agent caches carry the
+  script's version, so each script rebuilds its own after the other ran.
 - **Timeline is Over9k's.** The button needs the `over9k-prompts` mod
   installed and a `prompts` block in the layout's panel; without them the bar
   shows Files and Changes only.
@@ -242,9 +253,9 @@ Agent status on a tab row, and on a folded space's row:
 - Clicking a tab in another space switches to that space and tab.
 - The arrow and a double-click on the space row both fold and unfold, and the
   fold is still there after restarting Herdr.
-- An agent working in a tab shows a spinner on that row. When it finishes or
-  asks for input, a dot appears. Folding the space moves that mark onto the
-  space row.
+- An agent working in a tab shows a spinner at the start of that row. When it
+  finishes or asks for input, a dot appears there. Folding the space tints its
+  arrow in that status's color.
 - Dragging a tab onto another tab in the same space reorders them, and the
   top bar shows no tab chips.
 - A worktree space appears under its repo's space, with its own tabs under it.
@@ -253,7 +264,9 @@ Agent status on a tab row, and on a folded space's row:
 - A Claude Code agent's row shows `model · effort · %` and, once it stops,
   the time since its last reply; narrowing the sidebar first shortens the
   effort to its capitals, then drops the model, while `%` and time stay.
-- A tab with two terminals lists both under it; clicking one focuses it.
+- A tab with two terminals starts folded under its own name, with its agent's
+  details if one of them is an agent; its arrow lists both under it, their
+  icons under the tab's, and clicking one focuses it.
 - An agent running sub-agents shows a count chip; clicking it lists them and
   clicking again hides them.
 - The header switch and `herdr-app do nested-tabs.details` both flip between
