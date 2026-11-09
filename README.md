@@ -151,7 +151,7 @@ these files, they are clones and not its shipped mods.
 - [x] Top bar without tab chips (chips as an option)
 - [x] Agent details and sub-agents in the sidebar, compact or detailed
 - [x] Timeline button when the panel holds Over9k's Timeline
-- [ ] Retake `preview.png` with the agent details
+- [x] Retake `preview.png` with the agent details
 - [ ] Merge the changes from newer Herdr releases of `spaces` and `tabs`
 - [x] `RECIPE.md` and the `herdr-layout` topic for [herdr.dev/layouts](https://herdr.dev/layouts)
 
