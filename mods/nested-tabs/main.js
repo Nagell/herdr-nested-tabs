@@ -34,6 +34,7 @@ const CHEVRON = 18;
 const LEAD_GAP = 5;
 const TREE_INDENT = CHEVRON + LEAD_GAP;
 const ROW_PAD = 8;
+const GUTTER = 12; // the status column at each row's left edge
 const where = (s, ps) => JSON.stringify([s.machine ?? null, place(s, ps)]);
 const base = (path) => path.replace(/\/+$/, "").split("/").pop();
 // Changes made outside Herdr (an editor's save, a commit in another app): looked
@@ -354,7 +355,7 @@ export default class Spaces extends View {
     const rows = this.ordered();
     const ps = panes();
     const byPane = new Map(agents().map((a) => [a.pane, a]));
-    const draw = (r) => (collapsed ? [this.compact(r, t)] : [this.row(r, t), ...this.tabRows(r, t, ps, byPane)]);
+    const draw = (r) => (collapsed ? [this.compact(r, t)] : [this.row(r, t, ps, byPane), ...this.tabRows(r, t, ps, byPane)]);
     const remote = [...new Set([...rows.map(r => r.w.machine).filter(Boolean), ...this.machines.map(m => m.name), ...Object.keys(this.reconnecting)])].sort();
     const loading = m => {
       const layout = machines().find(k => k.name === m)?.layout;
@@ -532,26 +533,41 @@ export default class Spaces extends View {
   // indent, icon, gaps and what sits at its end.
   room(indent, ends) {
     const sidebar = find(layout(), "sidebar")?.size?.px ?? 268;
-    return sidebar - 16 - indent - ROW_PAD - CHEVRON - 7 * 3 - ends;
+    return sidebar - 16 - (GUTTER - ROW_PAD) - indent - ROW_PAD - CHEVRON - 7 * 3 - ends;
   }
 
-  // A row's start: its status (or a fold arrow), then its program's icon. A child
-  // row has the same two columns, so its icon sits under its parent's.
-  lead(first, prog, t) {
+  // Every row starts with the status gutter, so all statuses line up whatever
+  // the depth; then `indent` (as measured from a row's old left padding).
+  start(status, indent, t) {
+    const mark = this.status(status, t);
+    return h_flex().flex_none().items_center()
+      .child(h_flex().w(GUTTER).flex_none().justify_center().when(Boolean(mark), (el) => el.child(mark)))
+      .child(div().w(indent - ROW_PAD).flex_none());
+  }
+
+  // The fold arrow's column, then the program icon: a child row has the same
+  // two columns, so its icon sits under its parent's. Two programs or more
+  // (a folded tab with several agents): their icons overlap.
+  lead(first, progs, t) {
+    const icon = (prog, size) => (prog.tint ? svg(prog.icon).size(size).text_color(t.muted) : image(prog.icon).size(size));
+    const shown = progs.filter((p) => p?.icon).slice(0, 2);
     return h_flex().flex_none().gap(LEAD_GAP).items_center()
       .child(first ?? div().size(CHEVRON).flex_none())
-      .child(h_flex().size(CHEVRON).flex_none().items_center().justify_center()
-        .when(Boolean(prog?.icon), (el) => el.child(prog.tint ? svg(prog.icon).size(14).text_color(t.muted) : image(prog.icon).size(14))));
+      .child(h_flex().relative().size(CHEVRON).flex_none().items_center().justify_center()
+        .when(shown.length === 1, (el) => el.child(icon(shown[0], 14)))
+        .when(shown.length === 2, (el) => el
+          .child(div().absolute().left(0).top(0).child(icon(shown[0], 12)))
+          .child(div().absolute().left(6).top(6).child(icon(shown[1], 12)))));
   }
 
-  statusBox(status, t) {
-    const mark = this.status(status, t);
-    return h_flex().size(CHEVRON).flex_none().items_center().justify_center().when(Boolean(mark), (el) => el.child(mark));
+  // The most urgent of several statuses: blocked, then working, then done.
+  rollup(statuses) {
+    for (const s of ["blocked", "working", "done"]) if (statuses.includes(s)) return s;
+    return null;
   }
 
-  // What a folded arrow hides speaks through its color.
-  statusColor(status, t) {
-    return status === "working" || status === "blocked" || status === "done" ? t[status] : null;
+  tabStatus(c, ps, byPane) {
+    return this.rollup([c.status, ...ps.filter((p) => p.tab === c.id).map((p) => byPane.get(p.pane)?.status)]);
   }
 
   arrow(id, open, color, toggle, t) {
@@ -573,7 +589,7 @@ export default class Spaces extends View {
   // An agent's running sub-agents, under it while its chip is open.
   subRows(addr, indent, t) {
     if (!this.subsOpen.has(addr)) return [];
-    return (this.subs[addr] ?? []).map((s) => h_flex().id(`sub-${addr}-${s.id}`).h(22).flex_none().pl(indent).pr(ROW_PAD).gap(7).items_center()
+    return (this.subs[addr] ?? []).map((s) => h_flex().id(`sub-${addr}-${s.id}`).h(22).flex_none().pl(indent + GUTTER - ROW_PAD).pr(ROW_PAD).gap(7).items_center()
       .text_size(12).text_color(t.muted)
       .child(h_flex().size(CHEVRON).flex_none().items_center().justify_center()
         .child(svg("mods/workspace-chrome/spinner.svg").size(10).text_color(t.dim).spin(1800)))
@@ -591,7 +607,7 @@ export default class Spaces extends View {
       const prog = (a ?? p).program;
       const chip = a && this.subs[a.address]?.length ? this.subsChip(a.address, t) : null;
       const room = this.room(indent + TREE_INDENT, chip ? 36 : 0);
-      const row = h_flex().id(`pane-${p.pane}`).h(this.detailed && a && this.info[a.address] ? 36 : 26).flex_none().pl(indent).pr(ROW_PAD).gap(7).items_center().rounded(7)
+      const row = h_flex().id(`pane-${p.pane}`).h(this.detailed && a && this.info[a.address] ? 36 : 26).flex_none().pr(ROW_PAD).gap(7).items_center().rounded(7)
         .text_size(12.5).text_color(on ? t.foreground : t.muted)
         .when(on, (el) => el.bg(t.hover))
         .hover((s) => s.bg(t.hover))
@@ -602,7 +618,8 @@ export default class Spaces extends View {
           run("pane.focus", { pane: p.pane });
           cx.notify();
         })
-        .child(this.lead(a ? this.statusBox(a.status, t) : null, prog, t))
+        .child(this.start(a?.status, indent, t))
+        .child(this.lead(null, [prog], t))
         .child(this.nameAndDetails(name, a, room, t))
         .when(Boolean(chip), (el) => el.child(chip));
       return [row, ...(a ? this.subRows(a.address, indent + TREE_INDENT, t) : [])];
@@ -624,8 +641,7 @@ export default class Spaces extends View {
     const open = this.tabsOpen(w);
     // One tab or none: little to fold, so the arrow steps back.
     const few = (w.tabs?.length ?? 0) <= 1;
-    const color = (!open && this.statusColor(w.status, t)) || (few ? t.dim : t.muted);
-    return this.arrow(`fold-${w.id}`, open, color, () => this.toggleTabs(w), t);
+    return this.arrow(`fold-${w.id}`, open, few ? t.dim : t.muted, () => this.toggleTabs(w), t);
   }
 
   // New tab, on the active or hovered space's row: drawn like a tab row's ×, at
@@ -679,13 +695,15 @@ export default class Spaces extends View {
       const inside = list.map((p) => byPane.get(p.pane)).filter(Boolean);
       const a = (several ? (!opened && inside.length === 1 ? inside[0] : null) : list.length === 1 ? byPane.get(list[0].pane) : null) ?? null;
       const chip = !several && a && this.subs[a.address]?.length ? this.subsChip(a.address, t) : null;
-      const first = several
-        ? this.arrow(`tab-fold-${c.id}`, opened, (!opened && this.statusColor(c.status, t)) || t.muted, () => this.toggleTab(c.id), t)
-        : this.statusBox(c.status, t);
+      const many = several && !opened && inside.length > 1;
+      const first = several ? this.arrow(`tab-fold-${c.id}`, opened, t.muted, () => this.toggleTab(c.id), t) : null;
+      // An opened tab leaves its status to its terminals' rows.
+      const status = opened ? null : this.tabStatus(c, ps, byPane);
       const closing = on || this.hovered === `tab-${c.id}`;
       const room = this.room(indent + TREE_INDENT, (chip ? 36 : 0) + (closing ? 19 : 0));
       const tall = this.detailed && a && this.info[a.address];
-      const row = h_flex().relative().id(`tab-${c.id}`).h(tall ? 36 : 26).flex_none().pl(indent).pr(ROW_PAD).gap(7).items_center().rounded(7)
+      const label = c.zoomed ? `${name} Z` : name;
+      const row = h_flex().relative().id(`tab-${c.id}`).h(tall ? 36 : 26).flex_none().pr(ROW_PAD).gap(7).items_center().rounded(7)
         .text_size(12.5).text_color(on ? t.foreground : t.muted)
         .when(on, (el) => el.bg(t.selected))
         .when(!on, (el) => el.hover((s) => s.bg(t.hover)))
@@ -724,8 +742,13 @@ export default class Spaces extends View {
           cx.stop_propagation();
           openOverlay({ mod: "menu", kind: "popup", width: 200, props: { tab: "tab", target: { id: c.id, space: w.id } } });
         })
-        .child(this.lead(first, program, t))
-        .child(this.nameAndDetails(c.zoomed ? `${name} Z` : name, a, room, t))
+        .child(this.start(status, indent, t))
+        .child(this.lead(first, many ? inside.map((x) => x.program) : [program], t))
+        .child(many
+          ? h_flex().flex_1().min_w(0).gap(6).items_center()
+            .child(div().min_w(0).truncate().child(label))
+            .child(div().flex_none().text_size(11).text_color(t.dim).child(`${inside.length} agents`))
+          : this.nameAndDetails(label, a, room, t))
         .when(Boolean(chip), (el) => el.child(chip))
         .when(closing, (el) => el.child(div().id(`close-${c.id}`).flex_none().text_color(t.dim).hover((s) => s.text_color(t.foreground))
           .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
@@ -736,10 +759,12 @@ export default class Spaces extends View {
     });
   }
 
-  row({ w, i, g, tree }, t) {
+  row({ w, i, g, tree }, t, ps, byPane) {
     const open = this.tabsOpen(w);
     // With its tabs listed, the shown tab carries the highlight instead of the space.
     const on = w.active && !(open && w.tabs?.length);
+    // An open space leaves its status to its tabs' rows.
+    const status = open ? null : this.rollup([w.status, ...(w.tabs ?? []).map((c) => this.tabStatus(c, ps, byPane))]);
     const fromIndex = this.pressed === null ? -1 : spaces().findIndex(s => s.id === this.pressed);
     const colors = shared("space.colors") ?? {};
     const color = colors[w.id] ?? "ansi6";
@@ -747,7 +772,7 @@ export default class Spaces extends View {
     return v_flex()
       .relative()
       .id(`space-${w.id}`)
-      .px(ROW_PAD)
+      .pr(ROW_PAD)
       .h(rowHeight({ tree }))
       .flex_none()
       .justify_center()
@@ -786,8 +811,10 @@ export default class Spaces extends View {
       })
       .on_hover(this.hover(`space-${w.id}`))
       .on_mouse_down("right", () => this.menu(w))
-      .child(
+      .child(h_flex().w_full().min_w(0).items_center().child(this.start(status, ROW_PAD, t)).child(
         h_flex()
+          .flex_1()
+          .min_w(0)
           .gap(9)
           .items_center()
           .child(h_flex().flex_none().gap(LEAD_GAP).items_center()
@@ -798,7 +825,7 @@ export default class Spaces extends View {
           .child(div().flex_shrink(0).max_w(150).truncate().text_color(t.foreground).child(w.name))
           .child(g ? this.gitTail(g, tree, w.name, t) : div().flex_1())
           .when(w.active || this.hovered === `space-${w.id}`, el => el.child(this.addTab(w, t))),
-      );
+      ));
   }
 
   compact({ w, i }, t) {

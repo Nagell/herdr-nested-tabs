@@ -58,12 +58,13 @@ sidebar, under the space they belong to.
   dimmed.
 - The active space's row has a `+`, drawn like the tab's ×, that opens the
   new-tab menu for it. Hovering any space or tab row shows its `+` or ×.
-- A tab row starts with its status (a spinner while an agent works, a dot when
-  it is blocked or done), then the program icon and name, and × on the
-  selected tab.
+- Statuses line up in one column at the sidebar's left edge, whatever the
+  depth: a spinner while an agent works, a dot when it is blocked or done. A
+  folded space or tab shows the most urgent of what it hides: blocked, then
+  working, then done.
+- A tab row shows the program icon, its name, and × on the selected tab.
 - Click selects (in any space), double-click renames, right-click opens the tab
   menu, drag reorders within the space.
-- A folded space or tab tints its fold arrow with its most urgent agent status.
 - Worktree spaces stay nested under their repo's space, as in Herdr, and list
   their own tabs under them.
 - Claude Code agents show their details after the name: model, effort, context
@@ -71,8 +72,9 @@ sidebar, under the space they belong to.
   When the sidebar is narrow the effort shortens to its capitals, then the model
   goes, then the name is cut; the context and the time always stay.
 - A tab with several terminals starts folded: it keeps its own name and shows
-  its agent's details if it has one agent. Its arrow lists the terminals under
-  it, their icons under the tab's.
+  its agent's details if it has one agent, or overlapping icons and "2 agents"
+  if it has more. Its arrow lists the terminals under it, their icons under
+  the tab's.
 - Running sub-agents are counted in a chip after the agent; a click on it lists
   them, and it stays closed until you open it.
 - **Compact** (details on the name's line) or **Detailed** (details under the

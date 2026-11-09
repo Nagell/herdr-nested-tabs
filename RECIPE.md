@@ -24,8 +24,12 @@ Everything outside the sidebar list and the top bar is the same as Herdr's
    - Header, 31px: "Spaces" in 11.5px `dim`, then on the right a 22px
      **Compact**/**Detailed** switch (`dim`; `foreground` on `selected` while
      Detailed) and a 26px `+` button that makes a new space.
-   - **Space row**, 30px (28px for a worktree), 8px radius. On the left: an
-     18px fold arrow (a Lucide chevron drawn at 16px, `muted`; `dim` when the
+   - **Status column**: every row starts with a 12px column at its left edge
+     (no left padding before it) holding its status mark, so all marks line
+     up whatever the row's depth. Everything after it sits 4px further right
+     than in Herdr's `spaces` mod.
+   - **Space row**, 30px (28px for a worktree), 8px radius. After the status
+     column: an 18px fold arrow (a Lucide chevron drawn at 16px, `muted`; `dim` when the
      space has one tab or none), then an 18px
      rounded-square avatar with the space's first letter in bold white
      10.5px. The avatar colors come from a fixed six-color palette (`#22a99a`,
@@ -41,10 +45,12 @@ Everything outside the sidebar list and the top bar is the same as Herdr's
    - **Worktree rows** sit under their repo's space, indented by 23px, with
      a branch icon in place of the avatar.
    - **Tab rows**, 26px each, 7px radius, 12.5px text, sit under their space
-     and above its worktrees. They start with an 18px status column under the
-     space's avatar (23px indent, plus 23px more under a worktree), then 5px
-     on, the program icon (14px; tinted icons in `muted`) and the tab name. A
-     tab with several terminals has a fold arrow in the status column instead.
+     and above its worktrees. After the status column they start with an 18px
+     arrow column under the space's avatar (23px indent, plus 23px more under
+     a worktree), empty unless the tab has several terminals, then 5px on, the
+     program icon (14px; tinted icons in `muted`) and the tab name. A folded
+     tab with two agents or more shows two 12px icons overlapping (the second
+     6px right and down) and "N agents" in 11px `dim` after the name.
      A tab nobody named (`tb<n>`) shows its
      program's name instead, or "Terminal", and a zoomed tab gets " Z" after
      its name. The selected tab in the active space is drawn in
@@ -57,8 +63,7 @@ Everything outside the sidebar list and the top bar is the same as Herdr's
      terminal shows them on its own row, and so does a folded tab with several
      terminals and one agent among them (no sub-agent chip there). An opened
      tab lists each terminal under it as a 26px row with the same columns as
-     the tab's, so its icon sits under the tab's: the agent's status, then an
-     agent with its title (the conversation's name) and details, or a plain
+     the tab's, so its icon sits under the tab's: an agent with its title (the conversation's name) and details, or a plain
      terminal with its program's name. Detailed puts the details on a second
      line (36px rows).
    - **Sub-agent chip** after an agent with sub-agents running: 16px, 4px
@@ -89,7 +94,10 @@ Everything outside the sidebar list and the top bar is the same as Herdr's
 
 ## How it behaves
 
-Agent status in the status column of a tab or terminal row:
+Agent status in the status column. A tab's is the most urgent of its
+agents' (blocked, then working, then done); a folded space's the most urgent
+of its tabs'. An open space or opened tab shows none, since the rows under it
+show their own.
 
 | Status  | Mark                                                   |
 | ------- | ------------------------------------------------------ |
@@ -100,12 +108,9 @@ Agent status in the status column of a tab or terminal row:
 
 - **Folding:** the arrow folds or unfolds a space's tabs, and so does a
   double-click anywhere else on the space's row. Folds survive restarts (they
-  are kept in the mod's `localStorage` as `tabs.folded`). A folded space's
-  arrow takes the color of the status it hides (`working`, `blocked`, `done`);
-  an open space's arrow stays `muted`, since its tabs show their own.
+  are kept in the mod's `localStorage` as `tabs.folded`).
 - **Tab folding:** a tab with several terminals starts folded; its arrow lists
-  them, tinted like a space's while folded. Opened tabs survive restarts
-  (`localStorage` `tabs.opened`).
+  them. Opened tabs survive restarts (`localStorage` `tabs.opened`).
 - **New tab:** the `+` opens Herdr's new-tab menu (terminal, agents, new
   space, worktrees). It shows on the active space's row and on whichever
   space row is hovered; on another space it selects that space first, since
@@ -253,9 +258,9 @@ Agent status in the status column of a tab or terminal row:
 - Clicking a tab in another space switches to that space and tab.
 - The arrow and a double-click on the space row both fold and unfold, and the
   fold is still there after restarting Herdr.
-- An agent working in a tab shows a spinner at the start of that row. When it
-  finishes or asks for input, a dot appears there. Folding the space tints its
-  arrow in that status's color.
+- An agent working in a tab shows a spinner in the status column at the left
+  edge. When it finishes or asks for input, a dot appears there. Folding the
+  space moves that mark onto the space row, in the same column.
 - Dragging a tab onto another tab in the same space reorders them, and the
   top bar shows no tab chips.
 - A worktree space appears under its repo's space, with its own tabs under it.
@@ -265,8 +270,9 @@ Agent status in the status column of a tab or terminal row:
   the time since its last reply; narrowing the sidebar first shortens the
   effort to its capitals, then drops the model, while `%` and time stay.
 - A tab with two terminals starts folded under its own name, with its agent's
-  details if one of them is an agent; its arrow lists both under it, their
-  icons under the tab's, and clicking one focuses it.
+  details if one of them is an agent, or overlapping icons and "2 agents" if
+  both are; its arrow lists both under it, their icons under the tab's, and
+  clicking one focuses it.
 - An agent running sub-agents shows a count chip; clicking it lists them and
   clicking again hides them.
 - The header switch and `herdr-app do nested-tabs.details` both flip between
