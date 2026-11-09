@@ -3,8 +3,9 @@
 Herdr's default window with the tabs moved out of the top bar and into the
 Spaces sidebar. Each space lists its own tabs right under it, so you can see
 what every space is running, and which agent needs you, without switching
-spaces. Claude Code agents show their model, effort, context and time since
-their last reply, and how many sub-agents they run. New tabs come from a `+`
+spaces. Claude Code and Codex agents show their model, effort, context and
+time since their last reply; Claude Code agents also how many sub-agents they
+run. New tabs come from a `+`
 on the space's row. The top bar keeps Files and Changes and loses its tab
 chips and its `+`.
 
@@ -61,7 +62,9 @@ Everything outside the sidebar list and the top bar is the same as Herdr's
    - **Agent details**, in 11px `dim` after the name, joined by `·`: model,
      effort, context used (`ansi2` under 50%, `ansi3` from 50%, `ansi1` from
      80%) and the time since its last reply (`4m`, `3h`, `2d`; not while it
-     works). Only for Claude Code agents on this computer. A tab with one
+     works). Only for Claude Code and Codex agents on this computer (Codex:
+     `GPT-5.6 Terra`, its reasoning effort, the last turn's tokens of the
+     window, the time its last turn finished). A tab with one
      terminal shows them on its own row, and so does a folded tab with several
      terminals and one agent among them (no sub-agent chip there). An opened
      tab lists each terminal under it as a 26px row with the same columns as
@@ -215,7 +218,12 @@ show their own.
   conversation under `~/.claude/projects/`, and `ps -wwE` for each Claude
   process's `HC_TERMINAL_ID`; writes `~/.cache/over9k/agents/<terminal>.json`)
   and `sh` running `subagents.sh` per agent (reads the transcript's
-  `subagents/` folder; caches in `~/.cache/over9k/`). Nothing reaches the
+  `subagents/` folder; caches in `~/.cache/over9k/`). For Codex agents,
+  `hc get <terminal> --json` for its program's pid, then `python3` running
+  `codex-info.py` with `<terminal>:<pid>` arguments (finds the
+  `~/.codex/sessions/**/rollout-*.jsonl` that a process under that pid holds
+  open, through `ps` and `lsof`, or `/proc` on Linux, and reads its last
+  `turn_context`, `token_count` and `task_complete`). Nothing reaches the
   network beyond Herdr's own machine connections.
 
 ## Watch out
@@ -246,8 +254,9 @@ show their own.
   so the Compact/Detailed toggle is a header switch and a key.
 - **Widths are estimates.** gpui-kit can't measure text, so the shortening
   order is decided by characters; a very wide name can still truncate early.
-- **Details are Claude Code's, local only.** Other agents (Codex, Pi) and
-  agents on other machines show name and status only. `~/.cache/over9k/` is
+- **Details are Claude Code's and Codex's, local only.** Other agents (Pi)
+  and agents on other machines show name and status only. Codex has no
+  sub-agent chip. `~/.cache/over9k/` is
   shared with Over9k if it's installed; the sub-agent caches carry the
   script's version, so each script rebuilds its own after the other ran.
 - **Timeline is Over9k's.** The button needs the `over9k-prompts` mod

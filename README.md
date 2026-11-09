@@ -68,8 +68,9 @@ sidebar, under the space they belong to.
   terminal (a file opened from Files or Changes) shows a file icon.
 - Worktree spaces stay nested under their repo's space, as in Herdr, and list
   their own tabs under them.
-- Claude Code agents show their details after the name: model, effort, context
-  used and how long since they last replied, e.g. `Opus 5.5 · H · 19% · 4m`.
+- Claude Code and Codex agents show their details after the name: model,
+  effort, context used and how long since they last replied, e.g.
+  `Opus 5.5 · H · 19% · 4m` or `GPT-5.6 Terra · max · 21% · 7d`.
   When the sidebar is narrow the effort shortens to its capitals, then the model
   goes, then the name is cut; the context and the time always stay.
 - A tab with several terminals starts folded: it keeps its own name and shows
@@ -168,8 +169,10 @@ Distributed under the Apache License 2.0. See `LICENSE` for more information.
 
 `mods/nested-tabs/claude-info.py` and `mods/nested-tabs/subagents.sh` come
 from [Over9k](https://github.com/herunan/herdr-over9k) (MIT, see
-`mods/nested-tabs/LICENSE-over9k`), with two fixes: the effort of agents using
-an output style, and teammates (workflow and team agents) counted as finished.
+`mods/nested-tabs/LICENSE-over9k`), with two changes: the effort of agents
+using an output style, and teammates (workflow and team agents) counted as
+idle once their turn is over. `mods/nested-tabs/codex-info.py` is this
+repository's own.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

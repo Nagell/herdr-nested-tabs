@@ -4,7 +4,8 @@
 // switch, right-click for its menu, drag to reorder.
 // Each space lists its tabs under it, before its worktrees; the triangle folds them.
 // A Claude Code agent's model, effort, context and sub-agents come from its own
-// session files (claude-info.py, subagents.sh: from Over9k, MIT, LICENSE-over9k).
+// session files (claude-info.py, subagents.sh: from Over9k, MIT, LICENSE-over9k);
+// a Codex agent's from the session file its process holds open (codex-info.py).
 
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
@@ -57,6 +58,7 @@ const FALLBACK = 60000;
 const MARK = { ansi6: "#22a99a", ansi3: "#e3814f", ansi4: "#5b8def", ansi5: "#8b7cf6", ansi2: "#3fae6a", ansi1: "#d9649a" };
 
 const isClaude = (a) => a.app === "claude-code" || a.program?.key === "claude";
+const isCodex = (a) => a.app === "codex" || a.program?.key === "codex";
 // Claude Code puts a status glyph before the conversation's name in its title.
 const agentTitle = (a) => (a.title ?? "").replace(/^[^\p{L}\p{N}]+/u, "").trim();
 let PY;
@@ -435,7 +437,7 @@ export default class Spaces extends View {
       .when(g.behind > 0, (el) => el.child(div().flex_none().text_color(t.ansi1).child(`\u2193${g.behind}`)));
   }
 
-  // Each local Claude Code agent's details, and its sub-agents, from Claude Code's
+  // Each local Claude Code and Codex agent's details, and Claude's sub-agents, from their
   // own files. One look at a time; a stuck one is given up after a minute.
   loadInfo(cx) {
     if (this.infoBusy && Date.now() - this.infoBusy < 60000) return;
@@ -464,6 +466,22 @@ export default class Spaces extends View {
             }).filter((x) => !x.done).sort((x, y) => x.idle - y.idle || y.at - x.at);
             if (alive.length) subs[a.address] = alive;
           }
+        }
+        // Codex agents: their session file is found through the terminal's process.
+        const codex = agents().filter((a) => !a.address.includes("/") && isCodex(a));
+        if (codex.length) {
+          this.cxScript ??= await readTextFile(`${appHome()}/mods/nested-tabs/codex-info.py`).catch(() => null);
+          const args = [];
+          for (const a of codex) {
+            const g = await hc(["get", a.address, "--json"]).catch(() => null);
+            let pid = null;
+            try { pid = JSON.parse(g?.stdout || "{}").pid; } catch {}
+            if (pid) args.push(`${a.address}:${pid}`);
+          }
+          const r = this.cxScript && args.length ? await python(["-c", this.cxScript, ...args]).catch(() => null) : null;
+          let all = {};
+          try { all = JSON.parse(r?.stdout || "{}"); } catch {}
+          for (const a of codex) if (all[a.address]) info[a.address] = all[a.address];
         }
       } finally {
         this.infoBusy = null;
