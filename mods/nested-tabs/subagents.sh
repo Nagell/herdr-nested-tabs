@@ -23,7 +23,7 @@ cachedir="${XDG_CACHE_HOME:-$HOME/.cache}/over9k"; mkdir -p "$cachedir"
 cache="$cachedir/subagents-$(printf '%s' "$1" | cksum | cut -d ' ' -f 1)"
 stamp() { stat -c '%Y %s' "$1" 2>/dev/null || stat -f '%m %z' "$1" 2>/dev/null; }
 # Bump v when this script changes, so cached answers (and states) from the old one go.
-v=5
+v=7
 newest=$(ls -t "$dir"/*.jsonl 2>/dev/null | head -n 1)
 key="v$v $(stamp "$1") $(stamp "$newest") $((now / 60))"
 if [ -f "$cache" ] && [ "$(head -n 1 "$cache")" = "$key" ]; then tail -n +2 "$cache"; exit 0; fi
@@ -48,11 +48,13 @@ if [ -f "$1" ]; then
   fi
   { echo "v$v $((off + n)) $start"
     cat "$cache.$$.old"
-    grep -E '<task-id>|Successfully stopped task: |agent-message from=' "$chunk" 2>/dev/null | jq -Rr '
+    # A teammate's message names it by name, not id; its senderTaskId is the id.
+    grep -E '<task-id>|Successfully stopped task: |agent-message from=|"senderTaskId"' "$chunk" 2>/dev/null | jq -Rr '
     (try (fromjson | .timestamp // empty | sub("\\.[0-9]+Z$"; "Z") | fromdate) catch empty) as $t
     | ( (scan("<task-id>[a-z0-9]*</task-id>.{0,600}") | select(test("finished</summary>|<status>(killed|failed|stopped)</status>")) | capture("^<task-id>(?<i>[a-z0-9]*)").i),
         (scan("Successfully stopped task: [a-z0-9]*") | split(" ")[3]),
-        (scan("agent-message from=\\\\\"[a-z0-9]*") | sub(".*\""; "")) )
+        (scan("agent-message from=\\\\\"[a-z0-9]*") | sub(".*\""; "")),
+        (scan("\"senderTaskId\":\"[a-z0-9-]*\"") | split("\"")[3]) )
     | "\(.) \($t)"' 2>/dev/null
   } > "$state.$$" && mv -f "$state.$$" "$state"
   rm -f "$chunk" "$cache.$$.old"
@@ -82,10 +84,13 @@ for m in "$dir"/*.meta.json; do
     # Its last record, not its file's time: a session started again rewrites those.
     last=$(tail -n 20 "$j" | jq -r '.timestamp // empty | sub("\\.[0-9]+Z$"; "Z") | fromdate' 2>/dev/null | tail -n 1)
     replied=0; grep -q '"type":"assistant"' "$j" 2>/dev/null && replied=1
-    row="$id|$st|$model|$start|$tokens|$effort|$window|$last|$replied"
+    # Its turn ended: the last message is its reply with no tool call in it.
+    ended=$(tail -n 20 "$j" | jq -sr '[.[] | select(.type == "assistant" or .type == "user")] | last
+      | if .type == "assistant" and ([.message.content | arrays | .[] | select(.type == "tool_use")] | length) == 0 then 1 else 0 end' 2>/dev/null)
+    row="$id|$st|$model|$start|$tokens|$effort|$window|$last|$replied|${ended:-0}"
     { grep -v "^$id|" "$seen"; echo "$row"; } > "$seen.$$" && mv -f "$seen.$$" "$seen"
   fi
-  IFS='|' read -r _ _ model start tokens effort window last replied <<EOF
+  IFS='|' read -r _ _ model start tokens effort window last replied ended <<EOF
 $row
 EOF
   said=$(printf '%s\n' "$signals" | grep "^${id#agent-} " | tail -n 1 | cut -d ' ' -f 2)
@@ -95,6 +100,9 @@ EOF
   # Never replied two minutes on: not one that runs (a session started again can
   # write back an old one's files with nothing in them).
   [ "$done" = 0 ] && [ $((now - at)) -gt 120 ] && [ "$replied" = 0 ] && done=1
+  # A teammate (a workflow's or team's agent) is never told done: it ends its turn
+  # and waits for mail. Its turn over for two minutes, it isn't running.
+  [ "$done" = 0 ] && [ "$ended" = 1 ] && [ $((now - ${last:-now})) -gt 120 ] && done=1
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$id" "$at" "$(jq -r '[.description // "", .agentType // ""] | @tsv' "$m" 2>/dev/null)" "$model" "$start" "$tokens" "$effort" "$window" "$done"
 done > "$cache.$$"
 # Its own file, put in place whole: two runs at once (a slow one outlasting the

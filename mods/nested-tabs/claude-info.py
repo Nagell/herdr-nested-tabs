@@ -124,7 +124,8 @@ def read(path):
                 continue
             if j.get("type") == "assistant" and reply is None and (j.get("message") or {}).get("usage") and not j.get("isSidechain"):
                 reply = j
-            elif j.get("type") == "api-request" and request is None and j.get("querySource", "repl_main_thread") == "repl_main_thread":
+            # An output style tags the main thread's requests: "repl_main_thread:outputStyle:Concise".
+            elif j.get("type") == "api-request" and request is None and (j.get("querySource") or "repl_main_thread").split(":")[0] == "repl_main_thread":
                 request = j
     info = {"model": None, "id": None, "effort": None, "ultracode": bool(ultra), "lastAt": None, "context": None, "cacheUntil": None, "transcript": path}
     params = (request or {}).get("params") or {}
