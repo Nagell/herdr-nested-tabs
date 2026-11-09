@@ -1,6 +1,6 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { spaces, panes, run, openOverlay, props, theme, window, shared, layout, settings } from "herdr";
+import { spaces, panes, run, openOverlay, props, theme, window, shared, layout, settings, nextCommand } from "herdr";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -13,10 +13,22 @@ function find(node, id) {
 
 // Herdr's tab bar without the tab chips: tabs are listed in the nested-tabs sidebar.
 // Props: `chips: true` brings the shipped bar's tab chips back, for tabs in both places.
+// The command `tabs-bar.chips` turns them on or off; that choice outlives the prop.
 export default class Tabs extends View {
-  init() {
+  init(_props, cx) {
     this.panels = JSON.parse(localStorage.getItem("panels") ?? "{}");
     this.pressed = null;
+    const saved = localStorage.getItem("chips");
+    this.chips = saved === null ? null : saved === "1";
+    cx.spawn(async (cx) => {
+      for (;;) {
+        if ((await nextCommand()) === "chips") {
+          this.chips = !(this.chips ?? Boolean(props()?.chips));
+          localStorage.setItem("chips", this.chips ? "1" : "0");
+        }
+        cx.notify();
+      }
+    });
   }
 
   // The side panel is remembered per space: switching shows that space's choice
@@ -85,7 +97,7 @@ export default class Tabs extends View {
         }).child(svg(icon).size(14)).child(label);
     };
     // The shipped bar's tab chips, unchanged: icon, name, status, × on the selected one.
-    const shown = props()?.chips ? space?.tabs ?? [] : [];
+    const shown = (this.chips ?? Boolean(props()?.chips)) ? space?.tabs ?? [] : [];
     const item = (c, i) => {
       const program = panes().find(p => p.tab === c.id && p.program?.agent)?.program ?? panes().find(p => p.tab === c.id)?.program;
       const name = /^tb\d+$/.test(c.name) ? program?.name ?? "Terminal" : c.name;

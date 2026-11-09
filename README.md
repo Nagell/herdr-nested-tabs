@@ -86,7 +86,8 @@ sidebar, under the space they belong to.
   (`keys.json` suggests `cmd-shift-i`).
 - The top bar keeps Files, Changes and the per-space panel memory; the tab
   chips and its `+` are gone. With `"props": {"chips": true}` on the layout's
-  `tabs` block the chips come back, for tabs in both places.
+  `tabs` block the chips come back, for tabs in both places; a key bound to
+  `tabs-bar.chips` (`keys.json` suggests `cmd-shift-t`) turns them on or off.
 - With Over9k's Timeline (`over9k-prompts`) in the side panel as a block with
   id `prompts`, the top bar gets a **Timeline** button.
 
@@ -122,7 +123,7 @@ sidebar, under the space they belong to.
    ```
 
    Optional: merge `keys.json` into `~/.config/herdr-app/keys.json` for the
-   Compact/Detailed key.
+   Compact/Detailed key and the top-bar tabs key.
 
 3. Check both mods
 

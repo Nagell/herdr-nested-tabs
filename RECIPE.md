@@ -97,6 +97,9 @@ Everything outside the sidebar list and the top bar is the same as Herdr's
    Windows/Linux, the minimize, maximize and close buttons. With
    `"props": {"chips": true}` on the `tabs` block, the shipped bar's tab chips
    (29px, icon, name, status, × on the selected one) fill the left side again.
+   The mod command `tabs-bar.chips` (bound in `keys.json` to `cmd-shift-t`)
+   turns them on or off; that choice survives restarts (`localStorage`
+   `chips`) and wins over the prop once made.
 2. **Terminals** of the active tab, 8px padding and gap. Panes have a 10px
    radius, a 1px `border` (`accent` when focused) and a 30px header
    (shipped `pane`).
@@ -202,11 +205,12 @@ show their own.
   buttons, the per-space panel memory (`localStorage` `panels`) and the window
   buttons. The Timeline button reads `shared("sidebar.options").timeline`
   (Over9k's switch for it). Commands: `layout.show`/`layout.hide`/`layout.select`
-  for the panel, `tab.prev`/`tab.next`, and for chips `tab.select`, `tab.move`,
+  for the panel, `tab.prev`/`tab.next`, `nextCommand()` (`chips`), and for chips `tab.select`, `tab.move`,
   `tab.rename`, `tab.close` and the shipped `menu`, `window.minimize`/`maximize`/`close`. Art:
   `win-min.svg`, `win-max.svg`, `win-restore.svg`, `win-close.svg`, and
   `mods/over9k-prompts/timeline.svg` from Over9k when the Timeline is there.
-- **`keys.json`**: `global` `cmd-shift-i` → `nested-tabs.details`.
+- **`keys.json`**: `global` `cmd-shift-i` → `nested-tabs.details`,
+  `cmd-shift-t` → `tabs-bar.chips`.
 - **Shipped art it borrows:** `mods/workspace-chrome/` `chevron-down`,
   `chevron-right`, `spinner`, `branch`, `plus`, `server`, `monitor`;
   `mods/pane/close.svg`; `mods/files/file.svg`; `mods/changes/changes.svg`.
@@ -297,6 +301,7 @@ show their own.
 - The header switch and `herdr-app do nested-tabs.details` both flip between
   one-line and two-line agent rows, and the choice survives a restart.
 - With `"props": {"chips": true}` on the `tabs` block the top bar shows tab
-  chips; without it, none.
+  chips; without it, none. `herdr-app do tabs-bar.chips` flips that either
+  way, and the choice survives a restart.
 - In a layout whose panel has a `prompts` block with `over9k-prompts`, the
   top bar shows Timeline, and switching agents doesn't open it by itself.

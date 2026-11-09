@@ -1,5 +1,6 @@
 {
   "global": {
-    "cmd-shift-i": "nested-tabs.details"
+    "cmd-shift-i": "nested-tabs.details",
+    "cmd-shift-t": "tabs-bar.chips"
   }
 }
