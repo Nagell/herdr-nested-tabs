@@ -66,13 +66,16 @@ Everything outside the sidebar list and the top bar is the same as Herdr's
      terminals and one agent among them (no sub-agent chip there). An opened
      tab lists each terminal under it as a 26px row with the same columns as
      the tab's, so its icon sits under the tab's: an agent with its title (the conversation's name) and details, or a plain
-     terminal with its program's name. Detailed puts the details on a second
-     line (36px rows).
+     terminal with its program's name. Detailed makes agent rows 44px with
+     everything top-aligned: status, arrow, icon, name (18px line), chip and ×
+     on the first line, then 3px lower all details unshortened (14px line).
    - **Sub-agent chip** after an agent with sub-agents running or idle: 16px,
      4px radius, `raised`, the running count in 10.5px `foreground`, then
      `· n` idle in `dim` when there are idle ones, and an 8px chevron. Open,
-     each sub-agent gets a 22px row under the agent, starting under the
-     agent's icon: running ones a dim 10px spinner and their description in
+     each sub-agent gets a 22px row under the agent. A 1px `border` line runs
+     down from under the agent's icon and turns right (9px) at the last row,
+     bracketing them; 4px right of it, running ones get a dim 10px spinner
+     and their description in
      12px `muted`; idle ones a 7px hollow circle (1px `dim` border) and their
      description in `dim`. Their type follows in 11px `dim`. Only the newest 8
      idle ones are listed, then "… n more idle".

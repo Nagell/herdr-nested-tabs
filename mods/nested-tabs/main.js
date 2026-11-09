@@ -41,6 +41,9 @@ const GUTTER = 10;
 const GUTTER_GAP = 6;
 const LEFT = GUTTER_PAD + GUTTER + GUTTER_GAP;
 const IDLE_SHOWN = 8; // idle sub-agents listed under an open chip
+// A Detailed agent row: name on the first line, details on a second, top-aligned.
+const TALL = 44;
+const TALL_PAD = 5;
 // A tab with no terminal and no program icon (a file opened from Files or Changes).
 const FILE = { icon: "mods/files/file.svg", tint: true };
 const where = (s, ps) => JSON.stringify([s.machine ?? null, place(s, ps)]);
@@ -540,10 +543,12 @@ export default class Spaces extends View {
   nameAndDetails(name, a, room, t) {
     const i = a && this.info[a.address];
     if (!i) return div().flex_1().min_w(0).truncate().child(name);
+    // Detailed has a line of its own for the details: all of them, unshortened.
     if (this.detailed) {
+      const full = { model: i.model, effort: i.effort, pct: i.context == null ? null : Math.round(i.context), when: a.status === "working" ? null : ago(i) };
       return v_flex().flex_1().min_w(0)
-        .child(div().truncate().line_height("15px").child(name))
-        .child(this.detailLine(this.fit(a, i, room, 0), t).line_height("13px"));
+        .child(div().truncate().line_height("18px").child(name))
+        .child(div().mt(3).min_w(0).overflow_hidden().child(this.detailLine(full, t).line_height("14px")));
     }
     return h_flex().flex_1().min_w(0).gap(6).items_center()
       .child(div().min_w(0).truncate().child(name))
@@ -559,11 +564,18 @@ export default class Spaces extends View {
 
   // Every row starts with the status gutter, so all statuses line up whatever
   // the depth; then `indent` (as measured from a row's old left padding).
-  start(status, indent, t) {
+  // `gap`: the row's own gap after it, taken off so columns still line up.
+  start(status, indent, t, gap = 0) {
     const mark = this.status(status, t);
     return h_flex().flex_none().items_center().pl(GUTTER_PAD)
-      .child(h_flex().w(GUTTER).flex_none().justify_center().when(Boolean(mark), (el) => el.child(div().opacity(0.85).child(mark))))
-      .child(div().w(GUTTER_GAP + indent - ROW_PAD).flex_none());
+      .child(h_flex().w(GUTTER).h(CHEVRON).flex_none().items_center().justify_center().when(Boolean(mark), (el) => el.child(div().opacity(0.85).child(mark))))
+      .child(div().w(GUTTER_GAP + indent - ROW_PAD - gap).flex_none());
+  }
+
+  // What sits at a row's end (chip, ×), on its first line: a two-line row
+  // aligns its items to the top.
+  end(el) {
+    return h_flex().h(CHEVRON).flex_none().items_center().child(el);
   }
 
   // The fold arrow's column, then the program icon: a child row has the same
@@ -609,21 +621,31 @@ export default class Spaces extends View {
 
   // An agent's sub-agents, under it while its chip is open: running ones with a
   // spinner, idle teammates dimmed with a hollow circle (the newest few only).
+  // A line runs down from under the agent's icon and turns right at the last
+  // one, bracketing them. `indent`: the agent's icon column.
   subRows(addr, indent, t) {
     if (!this.subsOpen.has(addr)) return [];
     const all = this.subs[addr] ?? [];
     const running = all.filter((s) => !s.idle), idle = all.filter((s) => s.idle);
-    const row = (id) => h_flex().id(id).h(22).flex_none().pl(indent + LEFT - ROW_PAD).pr(ROW_PAD).gap(7).items_center().text_size(12);
-    const rows = [...running, ...idle.slice(0, IDLE_SHOWN)].map((s) => row(`sub-${addr}-${s.id}`)
+    const shown = [...running, ...idle.slice(0, IDLE_SHOWN)];
+    const more = idle.length - IDLE_SHOWN;
+    const count = shown.length + (more > 0 ? 1 : 0);
+    const H = 22, mid = CHEVRON / 2;
+    const guide = (last) => div().relative().w(CHEVRON).h(H).flex_none()
+      .child(div().absolute().left(mid).top(0).w(1).h(last ? H / 2 : H).bg(t.border))
+      .when(last, (el) => el.child(div().absolute().left(mid).top(H / 2).w(mid).h(1).bg(t.border)));
+    const row = (id, n) => h_flex().id(id).h(H).flex_none().pl(indent + LEFT - ROW_PAD).pr(ROW_PAD).gap(4).items_center().text_size(12)
+      .child(guide(n === count - 1));
+    const rows = shown.map((s, n) => row(`sub-${addr}-${s.id}`, n)
       .text_color(s.idle ? t.dim : t.muted)
-      .child(h_flex().size(CHEVRON).flex_none().items_center().justify_center()
+      .child(h_flex().size(14).flex_none().items_center().justify_center()
         .when(!s.idle, (el) => el.child(svg("mods/workspace-chrome/spinner.svg").size(10).text_color(t.dim).spin(1800)))
         .when(s.idle, (el) => el.child(div().size(7).rounded(4).border(1).border_color(t.dim))))
       .child(div().flex_1().min_w(0).truncate().child(s.desc || s.type || "sub-agent"))
       .when(Boolean(s.type), (el) => el.child(div().flex_none().text_size(11).text_color(t.dim).child(s.type))));
-    if (idle.length > IDLE_SHOWN) {
-      rows.push(row(`sub-${addr}-more`).text_color(t.dim).child(div().w(CHEVRON).flex_none())
-        .child(div().child(`… ${idle.length - IDLE_SHOWN} more idle`)));
+    if (more > 0) {
+      rows.push(row(`sub-${addr}-more`, count - 1).text_color(t.dim).child(div().w(14).flex_none())
+        .child(div().child(`… ${more} more idle`)));
     }
     return rows;
   }
@@ -638,7 +660,9 @@ export default class Spaces extends View {
       const prog = (a ?? p).program;
       const chip = a && this.subs[a.address]?.length ? this.subsChip(a.address, t) : null;
       const room = this.room(indent + TREE_INDENT, chip ? this.chipWidth(a.address) : 0);
-      const row = h_flex().id(`pane-${p.pane}`).h(this.detailed && a && this.info[a.address] ? 36 : 26).flex_none().pr(ROW_PAD).gap(7).items_center().rounded(7)
+      const tall = this.detailed && a && this.info[a.address];
+      const row = h_flex().id(`pane-${p.pane}`).h(tall ? TALL : 26).flex_none().pr(ROW_PAD).gap(7).items_center().rounded(7)
+        .when(tall, (el) => el.items_start().pt(TALL_PAD))
         .text_size(12.5).text_color(on ? t.foreground : t.muted)
         .when(on, (el) => el.bg(t.hover))
         .hover((s) => s.bg(t.hover))
@@ -649,10 +673,10 @@ export default class Spaces extends View {
           run("pane.focus", { pane: p.pane });
           cx.notify();
         })
-        .child(this.start(a?.status, indent, t))
+        .child(this.start(a?.status, indent, t, 7))
         .child(this.lead(null, [prog], t))
         .child(this.nameAndDetails(name, a, room, t))
-        .when(Boolean(chip), (el) => el.child(chip));
+        .when(Boolean(chip), (el) => el.child(this.end(chip)));
       return [row, ...(a ? this.subRows(a.address, indent + TREE_INDENT, t) : [])];
     });
   }
@@ -734,7 +758,8 @@ export default class Spaces extends View {
       const room = this.room(indent + TREE_INDENT, (chip ? this.chipWidth(a.address) : 0) + (closing ? 19 : 0));
       const tall = this.detailed && a && this.info[a.address];
       const label = c.zoomed ? `${name} Z` : name;
-      const row = h_flex().relative().id(`tab-${c.id}`).h(tall ? 36 : 26).flex_none().pr(ROW_PAD).gap(7).items_center().rounded(7)
+      const row = h_flex().relative().id(`tab-${c.id}`).h(tall ? TALL : 26).flex_none().pr(ROW_PAD).gap(7).items_center().rounded(7)
+        .when(tall, (el) => el.items_start().pt(TALL_PAD))
         .text_size(12.5).text_color(on ? t.foreground : t.muted)
         .when(on, (el) => el.bg(t.selected))
         .when(!on, (el) => el.hover((s) => s.bg(t.hover)))
@@ -775,18 +800,18 @@ export default class Spaces extends View {
         })
         // A middle click closes it, like its ×.
         .on_mouse_down("middle", (_e, cx) => { cx.stop_propagation(); run("tab.close", { id: c.id }); })
-        .child(this.start(status, indent, t))
+        .child(this.start(status, indent, t, 7))
         .child(this.lead(first, many ? inside.map((x) => x.program) : [program?.icon || list.length ? program : FILE], t))
         .child(many
           ? h_flex().flex_1().min_w(0).gap(6).items_center()
             .child(div().min_w(0).truncate().child(label))
             .child(div().flex_none().text_size(11).text_color(t.dim).child(`${inside.length} agents`))
           : this.nameAndDetails(label, a, room, t))
-        .when(Boolean(chip), (el) => el.child(chip))
-        .when(closing, (el) => el.child(div().id(`close-${c.id}`).flex_none().text_color(t.dim).hover((s) => s.text_color(t.foreground))
+        .when(Boolean(chip), (el) => el.child(this.end(chip)))
+        .when(closing, (el) => el.child(this.end(div().id(`close-${c.id}`).flex_none().text_color(t.dim).hover((s) => s.text_color(t.foreground))
           .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
           .on_click((_e, cx) => { cx.stop_propagation(); run("tab.close", { id: c.id }); })
-          .child(svg("mods/pane/close.svg").size(12))));
+          .child(svg("mods/pane/close.svg").size(12)))));
       if (opened) return [row, ...this.paneRows(w, c, list, indent, byPane, t)];
       return [row, ...(chip ? this.subRows(a.address, indent + TREE_INDENT, t) : [])];
     });

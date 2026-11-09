@@ -78,8 +78,8 @@ sidebar, under the space they belong to.
   the tab's.
 - Sub-agents are counted in a chip after the agent, running then idle
   (`3 · 11`; idle: a workflow teammate waiting for messages). A click lists
-  them, running ones with a spinner and idle ones dimmed with a hollow circle;
-  it stays closed until you open it.
+  them under a bracket line from the agent's icon, running ones with a spinner
+  and idle ones dimmed with a hollow circle; it stays closed until you open it.
 - **Compact** (details on the name's line) or **Detailed** (details under the
   name): the switch in the Spaces header, or a key bound to `nested-tabs.details`
   (`keys.json` suggests `cmd-shift-i`).
