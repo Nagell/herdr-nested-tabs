@@ -65,14 +65,18 @@ let PY;
 const python = (args) => (PY ??= exec("python3", ["-c", "1"]).then((r) => (r?.code === 0 ? "python3" : "python"), () => "python"))
   .then((py) => exec(py, args));
 
-// An effort shortened to its words' capitals (high → H, xhigh → XH); "max" stays
-// whole so it doesn't read as medium's M.
+// An effort shortened to its words' capitals (high → H, xhigh → XH); "max" and
+// Codex's "minimal" become MAX and MIN so they don't read as medium's M.
 function effortShort(e) {
   if (!e) return null;
   if (e === "max") return "MAX";
+  if (e === "minimal") return "MIN";
   return e.split(/[\s_-]+/).flatMap((w) => (/^x[a-z]{3,}$/.test(w) ? ["x", w.slice(1)] : [w]))
     .filter(Boolean).map((w) => w[0].toUpperCase()).join("");
 }
+
+// Whether an agent's details have anything to show (not so before its first reply).
+const hasDetails = (i) => !!i && (i.model || i.effort || i.context != null || i.lastAt);
 
 // How long since the agent last replied: "4m", "3h", "2d".
 function ago(i) {
@@ -123,7 +127,7 @@ export default class Spaces extends View {
     this.refreshMachines(cx);
     cx.timer.every(15000, cx => this.refreshMachines(cx));
     this.info = {}; // agent address -> { model, effort, context, lastAt, transcript }
-    this.subs = {}; // agent address -> its running sub-agents
+    this.subs = {}; // agent address -> its running and idle sub-agents (done ones dropped)
     this.subsOpen = new Set(JSON.parse(localStorage.getItem("agents.subsOpen") ?? "[]"));
     this.detailed = localStorage.getItem("agents.detailed") === "1";
     this.loadInfo(cx);
@@ -460,8 +464,9 @@ export default class Spaces extends View {
             if (!this.subScript || !i.transcript) continue;
             const s = await exec("sh", ["-c", this.subScript, "sh", i.transcript]).catch(() => null);
             // Running ones first, then idle teammates; newest first in each.
-            const alive = (s?.stdout ?? "").split("\n").filter(Boolean).map((l) => {
-              const [id, at, desc, type, model, , , effort, , done, idle] = l.split("\t");
+            // A line without its 11 fields would put each value in the wrong place.
+            const alive = (s?.stdout ?? "").split("\n").map((l) => l.split("\t")).filter((f) => f.length === 11).map((f) => {
+              const [id, at, desc, type, model, , , effort, , done, idle] = f;
               return { id, at: +at, desc, type, model, effort: effort || null, done: done === "1", idle: idle === "1" };
             }).filter((x) => !x.done).sort((x, y) => x.idle - y.idle || y.at - x.at);
             if (alive.length) subs[a.address] = alive;
@@ -560,7 +565,7 @@ export default class Spaces extends View {
   // name (detailed). `room` is what the row leaves for both.
   nameAndDetails(name, a, room, t) {
     const i = a && this.info[a.address];
-    if (!i) return div().flex_1().min_w(0).truncate().child(name);
+    if (!hasDetails(i)) return div().flex_1().min_w(0).truncate().child(name);
     // Detailed has a line of its own for the details: all of them, unshortened.
     if (this.detailed) {
       const full = { model: i.model, effort: i.effort, pct: i.context == null ? null : Math.round(i.context), when: a.status === "working" ? null : ago(i) };
@@ -580,7 +585,7 @@ export default class Spaces extends View {
     return sidebar - 16 - (LEFT - ROW_PAD) - indent - ROW_PAD - CHEVRON - 7 * 3 - ends;
   }
 
-  // Every row starts with the status gutter, so all statuses line up whatever
+  // Every row starts with the status column, so all statuses line up whatever
   // the depth; then `indent` (as measured from a row's old left padding).
   // `gap`: the row's own gap after it, taken off so columns still line up.
   start(status, indent, t, gap = 0) {
@@ -678,7 +683,7 @@ export default class Spaces extends View {
       const prog = (a ?? p).program;
       const chip = a && this.subs[a.address]?.length ? this.subsChip(a.address, t) : null;
       const room = this.room(indent + TREE_INDENT, chip ? this.chipWidth(a.address) : 0);
-      const tall = this.detailed && a && this.info[a.address];
+      const tall = this.detailed && a && hasDetails(this.info[a.address]);
       const row = h_flex().id(`pane-${p.pane}`).h(tall ? TALL : 26).flex_none().pr(ROW_PAD).gap(7).items_center().rounded(7)
         .when(tall, (el) => el.items_start().pt(TALL_PAD))
         .text_size(12.5).text_color(on ? t.foreground : t.muted)
@@ -774,7 +779,7 @@ export default class Spaces extends View {
       const status = opened ? null : this.tabStatus(c, ps, byPane);
       const closing = on || this.hovered === `tab-${c.id}`;
       const room = this.room(indent + TREE_INDENT, (chip ? this.chipWidth(a.address) : 0) + (closing ? 19 : 0));
-      const tall = this.detailed && a && this.info[a.address];
+      const tall = this.detailed && a && hasDetails(this.info[a.address]);
       const label = c.zoomed ? `${name} Z` : name;
       const row = h_flex().relative().id(`tab-${c.id}`).h(tall ? TALL : 26).flex_none().pr(ROW_PAD).gap(7).items_center().rounded(7)
         .when(tall, (el) => el.items_start().pt(TALL_PAD))

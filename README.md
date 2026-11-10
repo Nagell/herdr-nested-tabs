@@ -71,10 +71,10 @@ sidebar, under the space they belong to.
 - Claude Code and Codex agents show their details after the name: model,
   effort, context used and how long since they last replied, e.g.
   `Opus 5.5 · H · 19% · 4m` or `GPT-5.6 Terra · max · 21% · 7d`.
-  When the sidebar is narrow the effort shortens to its capitals, then the model
+  When a row runs out of room the effort shortens to its capitals, then the model
   goes, then the name is cut; the context and the time always stay.
 - A tab with several terminals starts folded: it keeps its own name and shows
-  its agent's details if it has one agent, or overlapping icons and "2 agents"
+  its agent's details if it has one agent, or overlapping icons and "N agents"
   if it has more. Its arrow lists the terminals under it, their icons under
   the tab's.
 - Sub-agents are counted in a chip after the agent, running then idle
@@ -83,11 +83,12 @@ sidebar, under the space they belong to.
   and idle ones dimmed with a hollow circle; it stays closed until you open it.
 - **Compact** (details on the name's line) or **Detailed** (details under the
   name): the switch in the Spaces header, or a key bound to `nested-tabs.details`
-  (`keys.json` suggests `cmd-shift-i`).
+  (`keys.json` suggests `cmd-shift-i` on macOS, `alt-shift-i` elsewhere).
 - The top bar keeps Files, Changes and the per-space panel memory; the tab
   chips and its `+` are gone. With `"props": {"chips": true}` on the layout's
   `tabs` block the chips come back, for tabs in both places; a key bound to
-  `tabs-bar.chips` (`keys.json` suggests `cmd-shift-t`) turns them on or off.
+  `tabs-bar.chips` (`keys.json` suggests `cmd-shift-t` on macOS, `alt-shift-t`
+  elsewhere) turns them on or off.
 - With Over9k's Timeline (`over9k-prompts`) in the side panel as a block with
   id `prompts`, the top bar gets a **Timeline** button.
 
@@ -106,6 +107,8 @@ sidebar, under the space they belong to.
 ### Prerequisites
 
 - [Herdr app](https://herdr.dev) (built against its shipped `spaces` and `tabs` mods, version 0.1.13)
+- For agent details: `python3`; for the sub-agent list also `jq`; for Codex
+  details on macOS, `lsof`
 
 ### Installation
 
@@ -165,14 +168,16 @@ Distributed under the Apache License 2.0. See `LICENSE` for more information.
 
 `mods/nested-tabs` and `mods/tabs-bar` are modified copies of the `spaces` and
 `tabs` mods shipped with [Herdr](https://github.com/herdrdev/herdr-app)
-(Apache-2.0). `nested-tabs` adds the tab rows, folding and folded status;
-`tabs-bar` removes the tab chips.
+(Apache-2.0). `nested-tabs` adds the tab rows, folding, statuses, agent
+details and sub-agents; `tabs-bar` hides the tab chips (back with the `chips`
+prop) and adds a Timeline button.
 
 `mods/nested-tabs/claude-info.py` and `mods/nested-tabs/subagents.sh` come
 from [Over9k](https://github.com/herunan/herdr-over9k) (MIT, see
-`mods/nested-tabs/LICENSE-over9k`), with two changes: the effort of agents
-using an output style, and teammates (workflow and team agents) counted as
-idle once their turn is over. `mods/nested-tabs/codex-info.py` is this
+`mods/nested-tabs/LICENSE-over9k`), with changes listed in `RECIPE.md`: among
+them the effort of agents using an output style, session files left by a
+crashed session skipped, sub-agents done once their turn has been over for two
+minutes, and teammates (workflow and team agents) counted as idle instead. `mods/nested-tabs/codex-info.py` is this
 repository's own.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>

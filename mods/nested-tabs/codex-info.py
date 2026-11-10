@@ -132,11 +132,12 @@ def main():
         files = open_rollouts(descendants(pid))
         if not files:
             continue
-        # Its own session, not a sub-agent's: the one written to last.
-        path = max(files, key=lambda f: os.path.getmtime(f) if os.path.exists(f) else 0)
+        # Several can be open (a sub-agent has its own): the one written to last is
+        # taken for its session. One that can't be read leaves only this agent blank.
         try:
+            path = max(files, key=lambda f: os.path.getmtime(f) if os.path.exists(f) else 0)
             out[terminal] = read(path)
-        except OSError:
+        except Exception:
             continue
     print(json.dumps(out))
 

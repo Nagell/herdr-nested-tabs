@@ -27,6 +27,16 @@ def alive(pid):
         return False
 
 
+def started(pid):
+    # When the process started (field 22 of /proc/<pid>/stat), as Claude Code's
+    # session file records it in procStart. None where there's no /proc (macOS).
+    try:
+        with open(f"/proc/{pid}/stat") as f:
+            return f.read().rsplit(")", 1)[1].split()[19]
+    except (OSError, IndexError):
+        return None
+
+
 def terminal_of(pid):
     # Linux: the process's environment; macOS: ps shows it for your own processes.
     try:
@@ -79,9 +89,12 @@ def model_name(mid):
     return f"{m.group(1).capitalize()} {m.group(2)}{'.' + m.group(3) if m.group(3) else ''}"
 
 
-def window(mid, used):
-    # The context window: 1M for [1m] models and the 5 family on; 200k before.
+def window(mid, used, betas):
+    # The context window: 1M for [1m] models, requests with the context-1m beta and
+    # the 5 family on; 200k before.
     if mid and "[1m]" in mid:
+        return 1_000_000
+    if any(isinstance(b, str) and b.startswith("context-1m") for b in betas):
         return 1_000_000
     m = re.search(r"claude-[a-z]+-(\d+)", mid or "")
     w = 1_000_000 if m and int(m.group(1)) >= 5 else 200_000
@@ -137,7 +150,8 @@ def read(path):
     if reply:
         u = reply["message"]["usage"]
         used = (u.get("input_tokens") or 0) + (u.get("cache_creation_input_tokens") or 0) + (u.get("cache_read_input_tokens") or 0)
-        info["context"] = round(used * 100 / window(mid, used))
+        betas = params.get("betas")
+        info["context"] = round(used * 100 / window(mid, used, betas if isinstance(betas, list) else []))
         at = seconds(reply.get("timestamp") or "")
         info["lastAt"] = at
         cc = u.get("cache_creation") or {}
@@ -147,7 +161,6 @@ def read(path):
 
 
 def main():
-    os.makedirs(OUT, exist_ok=True)
     found = {}
     for f in glob.glob(os.path.join(HOME, ".claude", "sessions", "*.json")):
         try:
@@ -156,6 +169,10 @@ def main():
         except Exception:
             continue
         if not alive(pid):
+            continue
+        # A file left by a session that crashed, its pid now another program's.
+        st = started(pid)
+        if st is not None and s.get("procStart") is not None and str(s["procStart"]) != st:
             continue
         term = terminal_of(pid)
         if not term or not re.fullmatch(r"[A-Za-z0-9_.-]+", term):
@@ -168,6 +185,16 @@ def main():
                 "lastAt": None, "context": None, "cacheUntil": None, "transcript": path}
         except Exception:
             continue
+    # The sidebar reads only what's printed: a cache that can't be written doesn't stop it.
+    try:
+        save(found)
+    except OSError:
+        pass
+    json.dump(found, sys.stdout, separators=(",", ":"))
+
+
+def save(found):
+    os.makedirs(OUT, exist_ok=True)
     for term, info in found.items():
         dest = os.path.join(OUT, f"{term}.json")
         text = json.dumps(info, separators=(",", ":"))
@@ -194,7 +221,6 @@ def main():
                 os.remove(dest)
             except OSError:
                 pass
-    json.dump(found, sys.stdout, separators=(",", ":"))
 
 
 main()
