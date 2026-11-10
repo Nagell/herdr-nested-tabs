@@ -58,15 +58,39 @@ sidebar, under the space they belong to.
   dimmed.
 - The active space's row has a `+`, drawn like the tab's ×, that opens the
   new-tab menu for it. Hovering any space or tab row shows its `+` or ×.
-- A tab row looks like a tab in the top bar: program icon, name, a spinner while
-  an agent works, a dot when it is blocked or done, and × on the selected tab.
+- Statuses line up in one column at the sidebar's left edge, whatever the
+  depth: a spinner while an agent works, a dot when it is blocked or done. A
+  folded space or tab shows the most urgent of what it hides: blocked, then
+  working, then done.
+- A tab row shows the program icon, its name, and × on the selected tab.
 - Click selects (in any space), double-click renames, right-click opens the tab
-  menu, drag reorders within the space.
-- A folded space shows its most urgent agent status on its own row.
+  menu, middle click closes, drag reorders within the space. A tab with no
+  terminal (a file opened from Files or Changes) shows a file icon.
 - Worktree spaces stay nested under their repo's space, as in Herdr, and list
   their own tabs under them.
+- Claude Code and Codex agents show their details after the name: model,
+  effort, context used and how long since they last replied, e.g.
+  `Opus 5.5 · H · 19% · 4m` or `GPT-5.6 Terra · max · 21% · 7d`.
+  When a row runs out of room the effort shortens to its capitals, then the model
+  goes, then the name is cut; the context and the time always stay.
+- A tab with several terminals starts folded: it keeps its own name and shows
+  its agent's details if it has one agent, or overlapping icons and "N agents"
+  if it has more. Its arrow lists the terminals under it, their icons under
+  the tab's.
+- Sub-agents are counted in a chip after the agent, running then idle
+  (`3 · 11`; idle: a workflow teammate waiting for messages). A click lists
+  them under a bracket line from the agent's icon, running ones with a spinner
+  and idle ones dimmed with a hollow circle; it stays closed until you open it.
+- **Compact** (details on the name's line) or **Detailed** (details under the
+  name): the switch in the Spaces header, or a key bound to `nested-tabs.details`
+  (`keys.json` suggests `cmd-shift-i` on macOS, `alt-shift-i` elsewhere).
 - The top bar keeps Files, Changes and the per-space panel memory; the tab
-  chips and its `+` are gone.
+  chips and its `+` are gone. With `"props": {"chips": true}` on the layout's
+  `tabs` block the chips come back, for tabs in both places; a key bound to
+  `tabs-bar.chips` (`keys.json` suggests `cmd-shift-t` on macOS, `alt-shift-t`
+  elsewhere) turns them on or off.
+- With Over9k's Timeline (`over9k-prompts`) in the side panel as a block with
+  id `prompts`, the top bar gets a **Timeline** button.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -83,6 +107,8 @@ sidebar, under the space they belong to.
 ### Prerequisites
 
 - [Herdr app](https://herdr.dev) (built against its shipped `spaces` and `tabs` mods, version 0.1.13)
+- For agent details: `python3`; for the sub-agent list also `jq`; for Codex
+  details on macOS, `lsof`
 
 ### Installation
 
@@ -98,6 +124,9 @@ sidebar, under the space they belong to.
    cp -R herdr-nested-tabs/mods/nested-tabs herdr-nested-tabs/mods/tabs-bar ~/.config/herdr-app/mods/
    cp herdr-nested-tabs/layouts/nested-tabs.json ~/.config/herdr-app/layouts/
    ```
+
+   Optional: merge `keys.json` into `~/.config/herdr-app/keys.json` for the
+   Compact/Detailed key and the top-bar tabs key.
 
 3. Check both mods
 
@@ -123,7 +152,10 @@ these files, they are clones and not its shipped mods.
 - [x] List tabs under each space
 - [x] Fold and unfold a space's tabs (triangle or double-click)
 - [x] Tab status (working, blocked, done) in the sidebar
-- [x] Top bar without tab chips
+- [x] Top bar without tab chips (chips as an option)
+- [x] Agent details and sub-agents in the sidebar, compact or detailed
+- [x] Timeline button when the panel holds Over9k's Timeline
+- [x] Retake `preview.png` with the agent details
 - [ ] Merge the changes from newer Herdr releases of `spaces` and `tabs`
 - [x] `RECIPE.md` and the `herdr-layout` topic for [herdr.dev/layouts](https://herdr.dev/layouts)
 
@@ -136,8 +168,17 @@ Distributed under the Apache License 2.0. See `LICENSE` for more information.
 
 `mods/nested-tabs` and `mods/tabs-bar` are modified copies of the `spaces` and
 `tabs` mods shipped with [Herdr](https://github.com/herdrdev/herdr-app)
-(Apache-2.0). `nested-tabs` adds the tab rows, folding and folded status;
-`tabs-bar` removes the tab chips.
+(Apache-2.0). `nested-tabs` adds the tab rows, folding, statuses, agent
+details and sub-agents; `tabs-bar` hides the tab chips (back with the `chips`
+prop) and adds a Timeline button.
+
+`mods/nested-tabs/claude-info.py` and `mods/nested-tabs/subagents.sh` come
+from [Over9k](https://github.com/herunan/herdr-over9k) (MIT, see
+`mods/nested-tabs/LICENSE-over9k`), with changes listed in `RECIPE.md`: among
+them the effort of agents using an output style, session files left by a
+crashed session skipped, sub-agents done once their turn has been over for two
+minutes, and teammates (workflow and team agents) counted as idle instead. `mods/nested-tabs/codex-info.py` is this
+repository's own.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
