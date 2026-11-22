@@ -55,7 +55,8 @@ sidebar, under the space they belong to.
 
 - Each space lists its tabs. The triangle folds or unfolds them, and so does a
   double-click anywhere else on the space's row. With one tab the triangle is
-  dimmed.
+  dimmed. With `"props": {"tabs": "folded"}` on the layout's `spaces` block,
+  spaces start folded.
 - The active space's row has a `+`, drawn like the tab's ×, that opens the
   new-tab menu for it. Hovering any space or tab row shows its `+` or ×.
 - Statuses line up in one column at the sidebar's left edge, whatever the
@@ -152,6 +153,7 @@ these files, they are clones and not its shipped mods.
 
 - [x] List tabs under each space
 - [x] Fold and unfold a space's tabs (triangle or double-click)
+- [x] Spaces folded by default (the `tabs` prop)
 - [x] Tab status (working, blocked, done) in the sidebar
 - [x] Top bar without tab chips (chips as an option)
 - [x] Agent details and sub-agents in the sidebar, compact or detailed

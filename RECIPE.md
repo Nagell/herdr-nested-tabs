@@ -129,7 +129,9 @@ show their own.
 
 - **Folding:** the arrow folds or unfolds a space's tabs, and so does a
   double-click anywhere else on the space's row. Folds survive restarts (they
-  are kept in the mod's `localStorage` as `tabs.folded`).
+  are kept in the mod's `localStorage` as `tabs.folded`). With
+  `"props": {"tabs": "folded"}` on the `spaces` block, spaces start folded
+  instead, and the ones unfolded are kept (`localStorage` `tabs.unfolded`).
 - **Tab folding:** a tab with several terminals starts folded; its arrow lists
   them. Opened tabs survive restarts (`localStorage` `tabs.opened`).
 - **New tab:** the `+` opens Herdr's new-tab menu (terminal, agents, new
@@ -187,13 +189,14 @@ show their own.
   column (`brand`, `sidebar-lists` column of `spaces` + `agents`,
   `sidebar-footer`) and `work` column (`tabs`, `work-body` row of `main`
   + `panel` stack of `files`/`changes`, `status`). `tabs-bar` takes one
-  optional prop, `chips`; `nested-tabs` takes none.
+  optional prop, `chips`; `nested-tabs` one too, `tabs` (`"open"`, the
+  default, or `"folded"`).
 - **`mods/nested-tabs/`**: a clone of the shipped `spaces` mod (0.1.13) with
   `tabRows()`, `chevron()`, `status()` and the folding added. It reads
   `spaces()` (each space's `tabs`, with `id`, `name`, `index`, `active`,
   `status`, `zoomed`), `panes()` (program icon and name per tab, git
   folder), `machines()`, `layout()` (sidebar width), `theme()`,
-  `shared("space.colors")`. Commands: `space.select`, `space.move`,
+  `shared("space.colors")`, `props()` (`tabs`). Commands: `space.select`, `space.move`,
   `space.new`, `tab.select`, `tab.move`, `tab.rename`, `tab.close`. Overlays:
   the shipped `menu` mod with `tab: "space"` or `tab: "tab"`, and the
   shipped `new-menu` (popup, 250 × 512) from a space's `+`. Hover is
@@ -304,6 +307,8 @@ show their own.
 - Clicking a tab in another space switches to that space and tab.
 - The arrow and a double-click on the space row both fold and unfold, and the
   fold is still there after restarting Herdr.
+- With `"props": {"tabs": "folded"}` on the `spaces` block every space starts
+  folded; one unfolded by hand stays unfolded after restarting Herdr.
 - An agent working in a tab shows a spinner in the status column at the left
   edge. When it finishes or asks for input, a dot appears there. Folding the
   space moves that mark onto the space row, in the same column.
