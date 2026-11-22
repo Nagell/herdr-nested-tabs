@@ -9,7 +9,7 @@
 
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, machines, panes, agents, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout, readTextFile, appHome, nextCommand } from "herdr";
+import { spaces, machines, panes, agents, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout, readTextFile, appHome, nextCommand, props } from "herdr";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -118,7 +118,9 @@ export default class Spaces extends View {
     this.tabPressed = null;
     this.tabOver = null;
     this.hovered = null; // row under the pointer ("space-<id>" / "tab-<id>"): shows its + or ×
-    this.tabsFolded = new Set(JSON.parse(localStorage.getItem("tabs.folded") ?? "[]"));
+    // With the `tabs` prop at "folded" spaces start folded, and this keeps the ones unfolded instead.
+    this.foldedFirst = props()?.tabs === "folded";
+    this.tabsFolded = new Set(JSON.parse(localStorage.getItem(this.foldedFirst ? "tabs.unfolded" : "tabs.folded") ?? "[]"));
     this.tabsOpened = new Set(JSON.parse(localStorage.getItem("tabs.opened") ?? "[]")); // tabs showing their terminals
     this.machines = [];
     this.reconnecting = JSON.parse(localStorage.getItem("machines.reconnecting") ?? "{}");
@@ -729,14 +731,14 @@ export default class Spaces extends View {
   }
 
   tabsOpen(w) {
-    return !this.tabsFolded.has(w.id);
+    return this.tabsFolded.has(w.id) === this.foldedFirst;
   }
 
   toggleTabs(w) {
     if (this.tabsFolded.has(w.id)) this.tabsFolded.delete(w.id);
     else this.tabsFolded.add(w.id);
     const ids = new Set(spaces().map((s) => s.id));
-    localStorage.setItem("tabs.folded", JSON.stringify([...this.tabsFolded].filter((id) => ids.has(id))));
+    localStorage.setItem(this.foldedFirst ? "tabs.unfolded" : "tabs.folded", JSON.stringify([...this.tabsFolded].filter((id) => ids.has(id))));
   }
 
   chevron(w, t) {
