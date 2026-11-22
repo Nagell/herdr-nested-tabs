@@ -75,8 +75,9 @@ Everything outside the sidebar list and the top bar is the same as Herdr's
      everything top-aligned: status, arrow, icon, name (18px line), chip and ×
      on the first line, then 3px lower all details unshortened (14px line).
      An agent with no details yet (before its first reply) keeps a 26px row.
-   - **Sub-agent chip** after an agent with sub-agents running or idle: 16px,
-     4px radius, `raised`, the running count in 10.5px `foreground`, then
+   - **Sub-agent chip** after an agent with sub-agents running, idle or done:
+     16px, 4px radius, `raised`, the running count (`–` for none) in 10.5px
+     `foreground`, then
      `· n` idle in `dim` when there are idle ones, and an 8px chevron. Open,
      each sub-agent gets a 22px row under the agent. A 1px `border` line runs
      down from under the agent's icon and turns right (9px) at the last row,
@@ -84,7 +85,8 @@ Everything outside the sidebar list and the top bar is the same as Herdr's
      and their description in
      12px `muted`; idle ones a 7px hollow circle (1px `dim` border) and their
      description in `dim`. Their type follows in 11px `dim`. Only the newest 8
-     idle ones are listed, then "… n more idle".
+     idle ones are listed, then "… n more idle". Last, when some are done, a
+     `dim` row with a `✓` and "n done".
    - With more than one machine connected, the rows are grouped under a 26px
      header per machine ("This computer", then each remote one), each with a
      `+`, a green or dim connection dot and its own fold arrow.
@@ -320,6 +322,8 @@ show their own.
 - An agent with sub-agents shows a count chip, running then idle; clicking it
   lists them (idle ones dimmed with a hollow circle) and clicking again hides
   them.
+- With sub-agents done, the open list ends in "✓ n done"; with none running or
+  idle the chip stays and reads `–`.
 - An open sub-agent list sits inside a 1px bracket line running down from the
   agent's icon; past 8 idle ones it ends in "… n more idle".
 - A sub-agent that finished its turn drops off the list two minutes later, but

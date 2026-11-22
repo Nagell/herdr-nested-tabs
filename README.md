@@ -80,7 +80,8 @@ sidebar, under the space they belong to.
 - Sub-agents are counted in a chip after the agent, running then idle
   (`3 · 11`; idle: a workflow teammate waiting for messages). A click lists
   them under a bracket line from the agent's icon, running ones with a spinner
-  and idle ones dimmed with a hollow circle; it stays closed until you open it.
+  and idle ones dimmed with a hollow circle, then how many are done; it stays
+  closed until you open it. With only done ones left, the chip reads `–`.
 - **Compact** (details on the name's line) or **Detailed** (details under the
   name): the switch in the Spaces header, or a key bound to `nested-tabs.details`
   (`keys.json` suggests `cmd-shift-i` on macOS, `alt-shift-i` elsewhere).

@@ -128,6 +128,7 @@ export default class Spaces extends View {
     cx.timer.every(15000, cx => this.refreshMachines(cx));
     this.info = {}; // agent address -> { model, effort, context, lastAt, transcript }
     this.subs = {}; // agent address -> its running and idle sub-agents (done ones dropped)
+    this.subsDone = {}; // agent address -> how many of its sub-agents are done
     this.subsOpen = new Set(JSON.parse(localStorage.getItem("agents.subsOpen") ?? "[]"));
     this.detailed = localStorage.getItem("agents.detailed") === "1";
     this.loadInfo(cx);
@@ -447,7 +448,7 @@ export default class Spaces extends View {
     if (this.infoBusy && Date.now() - this.infoBusy < 60000) return;
     this.infoBusy = Date.now();
     cx.spawn(async (cx) => {
-      const info = {}, subs = {};
+      const info = {}, subs = {}, subsDone = {};
       try {
         const claude = agents().filter((a) => !a.address.includes("/") && isClaude(a));
         if (claude.length) {
@@ -465,11 +466,14 @@ export default class Spaces extends View {
             const s = await exec("sh", ["-c", this.subScript, "sh", i.transcript]).catch(() => null);
             // Running ones first, then idle teammates; newest first in each.
             // A line without its 11 fields would put each value in the wrong place.
-            const alive = (s?.stdout ?? "").split("\n").map((l) => l.split("\t")).filter((f) => f.length === 11).map((f) => {
+            const list = (s?.stdout ?? "").split("\n").map((l) => l.split("\t")).filter((f) => f.length === 11).map((f) => {
               const [id, at, desc, type, model, , , effort, , done, idle] = f;
               return { id, at: +at, desc, type, model, effort: effort || null, done: done === "1", idle: idle === "1" };
-            }).filter((x) => !x.done).sort((x, y) => x.idle - y.idle || y.at - x.at);
-            if (alive.length) subs[a.address] = alive;
+            });
+            const alive = list.filter((x) => !x.done).sort((x, y) => x.idle - y.idle || y.at - x.at);
+            const done = list.length - alive.length;
+            if (alive.length || done) subs[a.address] = alive;
+            if (done) subsDone[a.address] = done;
           }
         }
         // Codex agents: their session file is found through the terminal's process.
@@ -491,11 +495,12 @@ export default class Spaces extends View {
       } finally {
         this.infoBusy = null;
       }
-      const next = JSON.stringify([info, subs]);
+      const next = JSON.stringify([info, subs, subsDone]);
       if (next !== this.infoKey) {
         this.infoKey = next;
         this.info = info;
         this.subs = subs;
+        this.subsDone = subsDone;
         cx.notify();
       }
     });
@@ -532,16 +537,28 @@ export default class Spaces extends View {
     return h_flex().flex_none().gap(4).items_center().text_size(11).text_color(t.dim).children(dotted);
   }
 
+  // An agent has a chip while it has sub-agents running, idle or done.
+  hasSubs(addr) {
+    return addr in this.subs;
+  }
+
+  // The chip's running count: "–" for none, so a chip with only idle or done
+  // sub-agents still shows.
+  running(all) {
+    const n = all.filter((s) => !s.idle).length;
+    return n ? String(n) : "\u2013";
+  }
+
   // The px its chip takes at a row's end, gap included (judged by characters).
   chipWidth(addr) {
     const all = this.subs[addr] ?? [];
     const idle = all.filter((s) => s.idle).length;
-    const text = String(all.length - idle) + (idle ? ` · ${idle}` : "");
+    const text = this.running(all) + (idle ? ` · ${idle}` : "");
     return 30 + text.length * DETAIL_CH;
   }
 
   // How many sub-agents an agent has running, then idle ("3 · 11"); a click
-  // shows or hides them.
+  // shows or hides them, and how many are done.
   subsChip(addr, t) {
     const open = this.subsOpen.has(addr);
     const all = this.subs[addr];
@@ -556,7 +573,7 @@ export default class Spaces extends View {
         localStorage.setItem("agents.subsOpen", JSON.stringify([...this.subsOpen]));
         cx.notify();
       })
-      .child(String(all.length - idle))
+      .child(this.running(all))
       .when(idle > 0, (el) => el.child(div().text_color(t.dim).child(`· ${idle}`)))
       .child(svg(`mods/workspace-chrome/chevron-${open ? "down" : "right"}.svg`).size(8));
   }
@@ -643,7 +660,8 @@ export default class Spaces extends View {
   }
 
   // An agent's sub-agents, under it while its chip is open: running ones with a
-  // spinner, idle teammates dimmed with a hollow circle (the newest few only).
+  // spinner, idle teammates dimmed with a hollow circle (the newest few only),
+  // then a line with how many are done.
   // A line runs down from under the agent's icon and turns right at the last
   // one, bracketing them. `indent`: the agent's icon column.
   subRows(addr, indent, t) {
@@ -652,7 +670,8 @@ export default class Spaces extends View {
     const running = all.filter((s) => !s.idle), idle = all.filter((s) => s.idle);
     const shown = [...running, ...idle.slice(0, IDLE_SHOWN)];
     const more = idle.length - IDLE_SHOWN;
-    const count = shown.length + (more > 0 ? 1 : 0);
+    const done = this.subsDone[addr] ?? 0;
+    const count = shown.length + (more > 0 ? 1 : 0) + (done ? 1 : 0);
     const H = 22, mid = CHEVRON / 2;
     const guide = (last) => div().relative().w(CHEVRON).h(H).flex_none()
       .child(div().absolute().left(mid).top(0).w(1).h(last ? H / 2 : H).bg(t.border))
@@ -667,8 +686,13 @@ export default class Spaces extends View {
       .child(div().flex_1().min_w(0).truncate().child(s.desc || s.type || "sub-agent"))
       .when(Boolean(s.type), (el) => el.child(div().flex_none().text_size(11).text_color(t.dim).child(s.type))));
     if (more > 0) {
-      rows.push(row(`sub-${addr}-more`, count - 1).text_color(t.dim).child(div().w(14).flex_none())
+      rows.push(row(`sub-${addr}-more`, shown.length).text_color(t.dim).child(div().w(14).flex_none())
         .child(div().child(`… ${more} more idle`)));
+    }
+    if (done) {
+      rows.push(row(`sub-${addr}-done`, count - 1).text_color(t.dim)
+        .child(h_flex().size(14).flex_none().items_center().justify_center().child("\u2713"))
+        .child(div().child(`${done} done`)));
     }
     return rows;
   }
@@ -681,7 +705,7 @@ export default class Spaces extends View {
       const on = w.active && c.active && p.focused;
       const name = a ? agentTitle(a) || a.program?.name || "Agent" : p.program?.name ?? (p.title || "Terminal");
       const prog = (a ?? p).program;
-      const chip = a && this.subs[a.address]?.length ? this.subsChip(a.address, t) : null;
+      const chip = a && this.hasSubs(a.address) ? this.subsChip(a.address, t) : null;
       const room = this.room(indent + TREE_INDENT, chip ? this.chipWidth(a.address) : 0);
       const tall = this.detailed && a && hasDetails(this.info[a.address]);
       const row = h_flex().id(`pane-${p.pane}`).h(tall ? TALL : 26).flex_none().pr(ROW_PAD).gap(7).items_center().rounded(7)
@@ -772,7 +796,7 @@ export default class Spaces extends View {
       const opened = several && this.tabsOpened.has(c.id);
       const inside = list.map((p) => byPane.get(p.pane)).filter(Boolean);
       const a = (several ? (!opened && inside.length === 1 ? inside[0] : null) : list.length === 1 ? byPane.get(list[0].pane) : null) ?? null;
-      const chip = !several && a && this.subs[a.address]?.length ? this.subsChip(a.address, t) : null;
+      const chip = !several && a && this.hasSubs(a.address) ? this.subsChip(a.address, t) : null;
       const many = several && !opened && inside.length > 1;
       const first = several ? this.arrow(`tab-fold-${c.id}`, opened, t.muted, () => this.toggleTab(c.id), t) : null;
       // An opened tab leaves its status to its terminals' rows.
