@@ -61,9 +61,11 @@ const isClaude = (a) => a.app === "claude-code" || a.program?.key === "claude";
 const isCodex = (a) => a.app === "codex" || a.program?.key === "codex";
 // Claude Code puts a status glyph before the conversation's name in its title.
 const agentTitle = (a) => (a.title ?? "").replace(/^[^\p{L}\p{N}]+/u, "").trim();
-let PY;
-const python = (args) => (PY ??= exec("python3", ["-c", "1"]).then((r) => (r?.code === 0 ? "python3" : "python"), () => "python"))
-  .then((py) => exec(py, args));
+// The machine an agent runs on ("vps" for "vps/t7"), null for this computer.
+const machineOf = (a) => (a.address.includes("/") ? a.address.slice(0, a.address.lastIndexOf("/")) : null);
+const PY = {};
+const python = (args, on = null) => (PY[on] ??= exec("python3", ["-c", "1"], { on }).then((r) => (r?.code === 0 ? "python3" : "python"), () => "python"))
+  .then((py) => exec(py, args, { on }));
 
 // An effort shortened to its words' capitals (high → H, xhigh → XH); "max" and
 // Codex's "minimal" become MAX and MIN so they don't read as medium's M.
@@ -442,28 +444,33 @@ export default class Spaces extends View {
       .when(g.behind > 0, (el) => el.child(div().flex_none().text_color(t.ansi1).child(`\u2193${g.behind}`)));
   }
 
-  // Each local Claude Code and Codex agent's details, and Claude's sub-agents, from their
-  // own files. One look at a time; a stuck one is given up after a minute.
+  // Each Claude Code agent's details and sub-agents, and each local Codex agent's details,
+  // from their own files. One look at a time; a stuck one is given up after a minute.
   loadInfo(cx) {
     if (this.infoBusy && Date.now() - this.infoBusy < 60000) return;
     this.infoBusy = Date.now();
     cx.spawn(async (cx) => {
       const info = {}, subs = {}, subsDone = {};
       try {
-        const claude = agents().filter((a) => !a.address.includes("/") && isClaude(a));
+        const claude = agents().filter(isClaude);
         if (claude.length) {
           const dir = `${appHome()}/mods/nested-tabs`;
           this.ciScript ??= await readTextFile(`${dir}/claude-info.py`).catch(() => null);
           this.subScript ??= await readTextFile(`${dir}/subagents.sh`).catch(() => null);
-          const r = this.ciScript ? await python(["-c", this.ciScript]).catch(() => null) : null;
-          let all = {};
-          try { all = JSON.parse(r?.stdout || "{}"); } catch {}
+          // The scripts run on each agent's machine, once per machine; there they key
+          // the agents by the terminal's own id ("t7" for "vps/t7").
+          const all = {};
           for (const a of claude) {
-            const i = all[a.address];
+            const on = machineOf(a);
+            if (!(on in all)) {
+              const r = this.ciScript ? await python(["-c", this.ciScript], on).catch(() => null) : null;
+              try { all[on] = JSON.parse(r?.stdout || "{}"); } catch { all[on] = {}; }
+            }
+            const i = all[on][a.address.slice(a.address.lastIndexOf("/") + 1)];
             if (!i) continue;
             info[a.address] = i;
             if (!this.subScript || !i.transcript) continue;
-            const s = await exec("sh", ["-c", this.subScript, "sh", i.transcript]).catch(() => null);
+            const s = await exec("sh", ["-c", this.subScript, "sh", i.transcript], { on }).catch(() => null);
             // Running ones first, then idle teammates; newest first in each.
             // A line without its 11 fields would put each value in the wrong place.
             const list = (s?.stdout ?? "").split("\n").map((l) => l.split("\t")).filter((f) => f.length === 11).map((f) => {

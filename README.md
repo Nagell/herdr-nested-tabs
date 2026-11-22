@@ -73,6 +73,7 @@ sidebar, under the space they belong to.
   `Opus 5.5 · H · 19% · 4m` or `GPT-5.6 Terra · max · 21% · 7d`.
   When a row runs out of room the effort shortens to its capitals, then the model
   goes, then the name is cut; the context and the time always stay.
+  Claude Code agents on other machines show them too: the scripts run there.
 - A tab with several terminals starts folded: it keeps its own name and shows
   its agent's details if it has one agent, or overlapping icons and "N agents"
   if it has more. Its arrow lists the terminals under it, their icons under
@@ -108,8 +109,8 @@ sidebar, under the space they belong to.
 ### Prerequisites
 
 - [Herdr app](https://herdr.dev) (built against its shipped `spaces` and `tabs` mods, version 0.1.13)
-- For agent details: `python3`; for the sub-agent list also `jq`; for Codex
-  details on macOS, `lsof`
+- For agent details: `python3`; for the sub-agent list also `jq` (both on
+  each machine with Claude Code agents); for Codex details on macOS, `lsof`
 
 ### Installation
 
@@ -155,6 +156,7 @@ these files, they are clones and not its shipped mods.
 - [x] Tab status (working, blocked, done) in the sidebar
 - [x] Top bar without tab chips (chips as an option)
 - [x] Agent details and sub-agents in the sidebar, compact or detailed
+- [x] Claude Code agent details on other machines
 - [x] Timeline button when the panel holds Over9k's Timeline
 - [x] Retake `preview.png` with the agent details
 - [ ] Merge the changes from newer Herdr releases of `spaces` and `tabs`
