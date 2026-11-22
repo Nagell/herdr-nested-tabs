@@ -62,7 +62,8 @@ Everything outside the sidebar list and the top bar is the same as Herdr's
    - **Agent details**, in 11px `dim` after the name, joined by `·`: model,
      effort, context used (`ansi2` under 50%, `ansi3` from 50%, `ansi1` from
      80%) and the time since its last reply (`4m`, `3h`, `2d`; not while it
-     works). Only for Claude Code and Codex agents on this computer (Codex:
+     works). Only for Claude Code agents, on any machine, and Codex agents on
+     this computer (Codex:
      `GPT-5.6 Terra`, its reasoning effort, the last turn's tokens of the
      window, the time its last turn finished). A tab with one
      terminal shows them on its own row, and so does a folded tab with several
@@ -235,11 +236,12 @@ show their own.
   each space's folder, through `exec` (on the space's machine), plus
   `hc machine ls/rm/add` to list and reconnect machines. Both come from the
   shipped `spaces` mod. For agent details, every 5s: `python3` running
-  `claude-info.py` (reads `~/.claude/sessions/*.json`, the end of each
+  `claude-info.py` once on each machine with a Claude Code agent (`exec`'s `on`;
+  its output keys the agents by their own id, `t7` for `vps/t7`; reads `~/.claude/sessions/*.json`, the end of each
   conversation under `~/.claude/projects/`, and each Claude process's
   `HC_TERMINAL_ID` from `/proc/<pid>/environ` on Linux, `ps -wwE` on macOS;
   writes `~/.cache/over9k/agents/<terminal>.json`)
-  and `sh` running `subagents.sh` per agent (reads the transcript's
+  and `sh` running `subagents.sh` per agent, on its machine (reads the transcript's
   `subagents/` folder with `jq`, `awk`, `stat` and `perl` where there is one;
   caches in `~/.cache/over9k/`). For Codex agents,
   `hc get <terminal> --json` for the terminal's process pid (its shell), then `python3` running
@@ -277,12 +279,12 @@ show their own.
   so the Compact/Detailed toggle is a header switch and a key.
 - **Widths are estimates.** gpui-kit can't measure text, so the shortening
   order is decided by characters; a very wide name can still truncate early.
-- **Details are Claude Code's and Codex's, local only.** Other agents (Pi)
-  and agents on other machines show name and status only. Codex has no
-  sub-agent chip. `~/.cache/over9k/` is
+- **Details are Claude Code's and Codex's, Codex's only local.** Other agents
+  (Pi) and Codex agents on other machines show name and status only. Codex has
+  no sub-agent chip. `~/.cache/over9k/` is
   shared with Over9k if it's installed; the sub-agent caches carry the
   script's version, so each script rebuilds its own after the other ran.
-- **Agent details need `python3` and `jq`.** Without `python3` agents show
+- **Agent details need `python3` and `jq`** on the agent's machine. Without `python3` agents show
   name and status only; without `jq` no sub-agents are listed.
 - **`cmd-` keys are macOS keys.** On Linux and Windows `cmd` is Super/Win,
   which the window manager often takes, so each key is bound twice, with
@@ -315,6 +317,8 @@ show their own.
 - A Claude Code agent's row shows `model · effort · %` and, once it stops,
   the time since its last reply; narrowing the sidebar first shortens the
   effort to its capitals, then drops the model, while `%` and time stay.
+- A Claude Code agent on another machine (`hc machine add`) shows the same
+  details and sub-agent chip as one on this computer.
 - A tab with two terminals starts folded under its own name, with its agent's
   details if one of them is an agent, or overlapping icons and "2 agents" if
   both are; its arrow lists both under it, their icons under the tab's, and
